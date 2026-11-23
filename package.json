@@ -1,0 +1,26 @@
+{
+  "name": "dclaude",
+  "version": "0.1.0",
+  "description": "Dump Claude Code token usage (per turn and per API call) from ~/.claude/projects as Markdown, CSV, or a live top-style view",
+  "type": "module",
+  "bin": {
+    "dclaude": "bin/dclaude.mjs"
+  },
+  "files": [
+    "bin/",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=21"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "anthropic",
+    "tokens",
+    "usage",
+    "prompt-caching",
+    "cli"
+  ],
+  "license": "MIT"
+}

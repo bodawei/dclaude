@@ -1,0 +1,5 @@
+node_modules/
+*.tgz
+# generated reports
+usage-report.md
+usage-report.csv
