@@ -23,6 +23,24 @@ Options:
                 second: project, INPUT-NEW (new-input + cache_write), INPUT-CACHED
                 (cache_read), OUTPUT, first 20 prompt chars.
                 Subagent turns are marked "↳". Press q or Ctrl-C to quit.
+                With a price table in ~/.dclaude_costs (or ~/dclaude_costs), a COST column
+                shows each turn's cost in dollars: new-input, output, cache writes (priced
+                by TTL) and cache_read combined. "?" means a model is missing from the table.
+                Format, keyed by model name (example figures):
+                  { "claude-opus-5-5": {
+                      "input":               { "dollarCost": 5,    "perTokens": 1000000 },
+                      "output":              { "dollarCost": 25,   "perTokens": 1000000 },
+                      "5mPromptCacheWrite":  { "dollarCost": 6.25, "perTokens": 1000000 },
+                      "60mPromptCacheWrite": { "dollarCost": 10,   "perTokens": 1000000 },
+                      "hitAndRefresh":       { "dollarCost": 0.5,  "perTokens": 1000000 },
+                      "overPromptTokens": { "200000": { <the same five prices> } },
+                      "multipliers": { "batch": 0.5, "fast": 2, "us-inference": 1.1 } } }
+                "overPromptTokens" is optional: it gives prices for calls whose prompt
+                (new-input + cache_write + cache_read) is over that many tokens; the
+                largest threshold below the prompt size wins.
+                "multipliers" is optional: keyed by a name from the flags column, it
+                scales every price of a call with that flag; several flags multiply.
+                A call with a flag its model has no multiplier for shows "?".
   --help, -h    show this help
   --version, -v show the version
 
@@ -75,6 +93,9 @@ function usageOf(u) {
     cache_write,
     cache_read,
     thinking: u.output_tokens_details?.thinking_tokens ?? 0,
+    // Split of cache_write by TTL; without the breakdown, the API default (5m) applies.
+    cache_write_5m: u.cache_creation ? u.cache_creation.ephemeral_5m_input_tokens ?? 0 : cache_write,
+    cache_write_1h: u.cache_creation?.ephemeral_1h_input_tokens ?? 0,
   };
 }
 
@@ -171,6 +192,101 @@ function sum(items) {
   const t = Object.fromEntries(FIELDS.map((f) => [f, 0]));
   for (const it of items) for (const f of FIELDS) t[f] += it[f] ?? 0;
   return t;
+}
+
+// ---------- costs ----------
+
+const COST_FILES = [".dclaude_costs", "dclaude_costs"].map((f) => join(homedir(), f));
+const COST_KEYS = ["input", "output", "5mPromptCacheWrite", "60mPromptCacheWrite", "hitAndRefresh"];
+
+/**
+ * The price table from ~/.dclaude_costs (or ~/dclaude_costs), or null if neither exists:
+ *   { "<model>": { "input": { "dollarCost": 5, "perTokens": 1000000 }, "output": {...},
+ *                  "5mPromptCacheWrite": {...}, "60mPromptCacheWrite": {...}, "hitAndRefresh": {...},
+ *                  "overPromptTokens": { "100000": { <the same five prices> } },
+ *                  "multipliers": { "batch": 0.5, "fast": 2, "us-inference": 1.1 } } }
+ * "overPromptTokens" is optional: prices for calls whose prompt (new-input + cache_write +
+ * cache_read) is over the given size. "multipliers" is optional too: keyed by the names the
+ * flags column uses, each scales every price of a call that has that flag. Numbers, and the
+ * overPromptTokens keys, may use digit separators (1_000_000). Returns
+ * { model: { base: rates, tiers: [{ over, rates }] (largest first), multipliers } },
+ * where rates are { key: dollars per token }.
+ */
+function loadCosts() {
+  const path = COST_FILES.find((p) => existsSync(p));
+  if (!path) return null;
+  const fail = (why) => {
+    console.error(`dclaude: ${tilde(path)}: ${why}`);
+    process.exit(2);
+  };
+  let table;
+  try {
+    // Drop "_" between digits outside strings, so 1_000_000 parses.
+    const text = readFileSync(path, "utf8").replace(/("(?:[^"\\]|\\.)*")|(?<=\d)_(?=\d)/g, (m, s) => s ?? "");
+    table = JSON.parse(text);
+  } catch (e) {
+    fail(e.message);
+  }
+  const isObj = (x) => x && typeof x === "object" && !Array.isArray(x);
+  if (!isObj(table)) fail("expected an object keyed by model name");
+  const pricesOf = (entry, where) => {
+    const r = {};
+    for (const k of COST_KEYS) {
+      const { dollarCost, perTokens } = entry?.[k] ?? {};
+      if (typeof dollarCost !== "number" || typeof perTokens !== "number" || perTokens <= 0) {
+        fail(`${where}.${k} needs numeric dollarCost and positive perTokens`);
+      }
+      r[k] = dollarCost / perTokens;
+    }
+    return r;
+  };
+  const rates = {};
+  for (const [model, entry] of Object.entries(table)) {
+    const over = entry?.overPromptTokens ?? {};
+    if (!isObj(over)) fail(`${model}.overPromptTokens must be an object keyed by prompt size`);
+    const tiers = Object.entries(over).map(([size, prices]) => {
+      const n = Number(size.replaceAll("_", ""));
+      if (!Number.isInteger(n) || n < 0) fail(`${model}.overPromptTokens: "${size}" is not a token count`);
+      return { over: n, rates: pricesOf(prices, `${model}.overPromptTokens.${size}`) };
+    });
+    const multipliers = entry?.multipliers ?? {};
+    if (!isObj(multipliers)) fail(`${model}.multipliers must be an object keyed by flag name`);
+    for (const [flag, x] of Object.entries(multipliers)) {
+      if (typeof x !== "number" || x < 0) fail(`${model}.multipliers.${flag} must be a non-negative number`);
+    }
+    rates[model] = { base: pricesOf(entry, model), tiers: tiers.sort((a, b) => b.over - a.over), multipliers };
+  }
+  return rates;
+}
+
+/** Flags that don't change the price of a call. */
+const UNPRICED_FLAGS = new Set(["fallback"]);
+
+/**
+ * Dollar cost of some calls, or null when a call with tokens uses a model missing from the
+ * table, or has a flag (batch, fast, us-inference, ...) its model gives no multiplier for.
+ */
+function costOf(calls, rates) {
+  let total = 0;
+  for (const call of calls) {
+    const m = rates[call.model];
+    if (!m) {
+      if (call.input + call.output > 0) return null;
+      continue;
+    }
+    // Priced per call by its whole prompt: call.input = new-input + cache_write + cache_read.
+    const r = m.tiers.find((t) => call.input > t.over)?.rates ?? m.base;
+    let x = 1;
+    for (const f of call.flags) {
+      if (UNPRICED_FLAGS.has(f)) continue;
+      if (!(f in m.multipliers)) return null;
+      x *= m.multipliers[f];
+    }
+    total += x * (call.new_input * r.input + call.output * r.output
+      + call.cache_write_5m * r["5mPromptCacheWrite"] + call.cache_write_1h * r["60mPromptCacheWrite"]
+      + call.cache_read * r.hitAndRefresh);
+  }
+  return total;
 }
 
 // ---------- discovery ----------
@@ -370,10 +486,10 @@ function printCsv(projects, showCalls) {
 
 const home = homedir();
 const tilde = (p) => (p.startsWith(home) ? "~" + p.slice(home.length) : p);
-const fit = (s, w) => (s.length > w ? s.slice(0, Math.max(0, w - 1)) + "…" : s.padEnd(w));
+const fit = (s, w) => (w <= 0 ? "" : s.length > w ? s.slice(0, w - 1) + "…" : s.padEnd(w));
 
 /** Every turn across all transcripts (subagent turns included), newest first. */
-function recentTurns(projects) {
+function recentTurns(projects, rates) {
   const out = [];
   for (const p of projects) {
     for (const s of p.sessions) {
@@ -388,6 +504,7 @@ function recentTurns(projects) {
             inputCached: tot.cache_read,
             output: tot.output,
             prompt: (sub ? "↳ " : "") + turn.prompt.split(/\s+/).join(" ").trim(),
+            cost: rates ? costOf(turn.calls, rates) : null,
           });
         }
       }
@@ -396,23 +513,36 @@ function recentTurns(projects) {
   return out.sort((a, b) => b.ts.localeCompare(a.ts));
 }
 
-function tail(paths, opts) {
+const dollars = (n) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function tail(paths, opts, rates) {
   const out = process.stdout;
-  const NEW_W = 11, CACHED_W = 13, OUTPUT_W = 11, PROMPT_W = 20;
+  const PROMPT_W = 20, GAP = " ";
+  const HEADS = ["PROJECT", "INPUT-NEW", "INPUT-CACHED", "OUTPUT", "PROMPT", ...(rates ? ["COST"] : [])];
   const render = () => {
-    const rows = out.rows || 24, cols = out.columns || 80;
-    const turns = recentTurns(loadAll(paths, opts));
-    const projW = Math.max(10, cols - NEW_W - CACHED_W - OUTPUT_W - PROMPT_W - 8);
-    const line = (proj, inNew, inCached, output, prompt) =>
-      [fit(proj, projW), inNew.padStart(NEW_W), inCached.padStart(CACHED_W),
-        output.padStart(OUTPUT_W), prompt].join("  ").slice(0, cols);
+    // Stay off the last column: after a character there, the "\x1b[K" below erases it in
+    // some terminals (e.g. macOS Terminal).
+    const rows = out.rows || 24, cols = (out.columns || 80) - 1;
+    const turns = recentTurns(loadAll(paths, opts), rates);
+    const cells = turns.slice(0, Math.max(0, rows - 2)).map((t) => [t.project, fmt(t.inputNew), fmt(t.inputCached), fmt(t.output), t.prompt,
+      ...(rates ? [t.cost == null ? "?" : "$" + dollars(t.cost)] : [])]);
+    // Number columns are as wide as their widest value or header.
+    const w = HEADS.map((h, i) => Math.max(h.length, ...cells.map((c) => c[i].length)));
+    const fixed = w[1] + w[2] + w[3] + (rates ? w[5] + GAP.length : 0) + 4 * GAP.length;
+    // COST sits right of the prompt, so on a narrow screen shrink the prompt, then the
+    // project (down to 1), rather than let the right edge clip the cost.
+    const promptW = rates ? Math.min(PROMPT_W, Math.max(0, cols - fixed - 10)) : PROMPT_W;
+    const projW = Math.max(rates ? 1 : 10, cols - fixed - promptW);
+    const line = (c) =>
+      [fit(c[0], projW), c[1].padStart(w[1]), c[2].padStart(w[2]), c[3].padStart(w[3]),
+        rates ? fit(c[4], promptW) : fit(c[4], promptW).trimEnd(),
+        ...(rates ? [c[5].padStart(w[5])] : [])].join(GAP).trimEnd().slice(0, cols);
     const now = new Date();
     const lines = [
       fit(`Claude Code usage · ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}` +
         ` · ${turns.length} turns · q to quit`, cols),
-      "\x1b[7m" + fit(line("PROJECT", "INPUT-NEW", "INPUT-CACHED", "OUTPUT", "PROMPT"), cols) + "\x1b[0m",
-      ...turns.slice(0, Math.max(0, rows - 2)).map((t) =>
-        line(t.project, fmt(t.inputNew), fmt(t.inputCached), fmt(t.output), fit(t.prompt, PROMPT_W).trimEnd())),
+      "\x1b[7m" + fit(line(HEADS), cols) + "\x1b[0m",
+      ...cells.map(line),
     ];
     out.write("\x1b[H" + lines.map((l) => l + "\x1b[K").join("\n") + "\x1b[J");
   };
@@ -431,7 +561,8 @@ function tail(paths, opts) {
       if (key === "q" || key === "\x03") quit(); // q or Ctrl-C (raw mode swallows SIGINT)
     });
   }
-  out.on("resize", render);
+  // Terminals rewrap the old frame when the window changes size; wipe it before redrawing.
+  out.on("resize", () => { out.write("\x1b[2J"); render(); });
   render();
   setInterval(render, 1000);
 }
@@ -485,7 +616,8 @@ function main(argv) {
   const paths = (args.length ? args : [DEFAULT_ROOT])
     .map((a) => resolve(a.replace(/^~(?=$|\/)/, homedir())));
   const opts = { conductor: flags.has("--conductor") };
-  if (flags.has("--tail")) return tail(paths, opts);
+  const rates = loadCosts();
+  if (flags.has("--tail")) return tail(paths, opts, rates);
   const projects = loadAll(paths, opts);
   if (projects.length === 0) {
     console.error("No transcripts with usage found.");
