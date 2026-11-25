@@ -1,7 +1,7 @@
 {
   "name": "dclaude",
   "version": "0.1.0",
-  "description": "Dump Claude Code token usage (per turn and per API call) from ~/.claude/projects as Markdown, CSV, or a live top-style view",
+  "description": "Dump Claude Code token usage (per turn and per API call) from ~/.claude/projects as Markdown, CSV, or a live top-style view (--tail)",
   "type": "module",
   "bin": {
     "dclaude": "bin/dclaude.mjs"

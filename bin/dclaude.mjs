@@ -19,8 +19,9 @@ Options:
                 per project with --summary); times are ISO 8601 UTC
   --conductor   merge .../conductor/workspaces/<project>/<workspace> folders into one
                 project, .../conductor/workspaces/<project>
-  --live        full-screen view of the most recent turns (newest first), refreshed every
-                second: project, total input, total output, first 20 prompt chars.
+  --tail        full-screen view of the most recent turns (newest first), refreshed every
+                second: project, INPUT-NEW (new-input + cache_write), INPUT-CACHED
+                (cache_read), OUTPUT, first 20 prompt chars.
                 Subagent turns are marked "↳". Press q or Ctrl-C to quit.
   --help, -h    show this help
   --version, -v show the version
@@ -46,7 +47,7 @@ Columns:
   cache_read      input tokens served from the prompt cache (cache_read_input_tokens)
   thinking        thinking tokens (subset of output, when reported)`;
 
-const KNOWN_FLAGS = new Set(["--summary", "--no-calls", "--csv", "--conductor", "--live", "--help", "-h", "--version", "-v"]);
+const KNOWN_FLAGS = new Set(["--summary", "--no-calls", "--csv", "--conductor", "--tail", "--help", "-h", "--version", "-v"]);
 const FIELDS = ["input", "output", "new_input", "cache_write", "cache_read", "thinking"];
 const DEFAULT_ROOT = join(homedir(), ".claude", "projects");
 
@@ -107,7 +108,7 @@ function readRecords(path) {
   return out;
 }
 
-/** Parsed transcripts keyed by path; reparsed only when size or mtime changes (for --live). */
+/** Parsed transcripts keyed by path; reparsed only when size or mtime changes (for --tail). */
 const parseCache = new Map();
 
 function parseTranscript(path, opts = {}) {
@@ -365,7 +366,7 @@ function printCsv(projects, showCalls) {
   }
 }
 
-// ---------- live mode ----------
+// ---------- tail mode ----------
 
 const home = homedir();
 const tilde = (p) => (p.startsWith(home) ? "~" + p.slice(home.length) : p);
@@ -383,7 +384,8 @@ function recentTurns(projects) {
           out.push({
             project: tilde(p.name),
             ts: turn.calls[0]?.start ?? turn.ts ?? "",
-            input: tot.input,
+            inputNew: tot.new_input + tot.cache_write,
+            inputCached: tot.cache_read,
             output: tot.output,
             prompt: (sub ? "↳ " : "") + turn.prompt.split(/\s+/).join(" ").trim(),
           });
@@ -394,22 +396,23 @@ function recentTurns(projects) {
   return out.sort((a, b) => b.ts.localeCompare(a.ts));
 }
 
-function live(paths, opts) {
+function tail(paths, opts) {
   const out = process.stdout;
-  const INPUT_W = 13, OUTPUT_W = 11, PROMPT_W = 20;
+  const NEW_W = 11, CACHED_W = 13, OUTPUT_W = 11, PROMPT_W = 20;
   const render = () => {
     const rows = out.rows || 24, cols = out.columns || 80;
     const turns = recentTurns(loadAll(paths, opts));
-    const projW = Math.max(10, cols - INPUT_W - OUTPUT_W - PROMPT_W - 6);
-    const line = (a, b, c, d) =>
-      `${fit(a, projW)}  ${b.padStart(INPUT_W)}  ${c.padStart(OUTPUT_W)}  ${d}`.slice(0, cols);
+    const projW = Math.max(10, cols - NEW_W - CACHED_W - OUTPUT_W - PROMPT_W - 8);
+    const line = (proj, inNew, inCached, output, prompt) =>
+      [fit(proj, projW), inNew.padStart(NEW_W), inCached.padStart(CACHED_W),
+        output.padStart(OUTPUT_W), prompt].join("  ").slice(0, cols);
     const now = new Date();
     const lines = [
       fit(`Claude Code usage · ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}` +
         ` · ${turns.length} turns · q to quit`, cols),
-      "\x1b[7m" + fit(line("PROJECT", "INPUT", "OUTPUT", "PROMPT"), cols) + "\x1b[0m",
+      "\x1b[7m" + fit(line("PROJECT", "INPUT-NEW", "INPUT-CACHED", "OUTPUT", "PROMPT"), cols) + "\x1b[0m",
       ...turns.slice(0, Math.max(0, rows - 2)).map((t) =>
-        line(t.project, fmt(t.input), fmt(t.output), fit(t.prompt, PROMPT_W).trimEnd())),
+        line(t.project, fmt(t.inputNew), fmt(t.inputCached), fmt(t.output), fit(t.prompt, PROMPT_W).trimEnd())),
     ];
     out.write("\x1b[H" + lines.map((l) => l + "\x1b[K").join("\n") + "\x1b[J");
   };
@@ -482,7 +485,7 @@ function main(argv) {
   const paths = (args.length ? args : [DEFAULT_ROOT])
     .map((a) => resolve(a.replace(/^~(?=$|\/)/, homedir())));
   const opts = { conductor: flags.has("--conductor") };
-  if (flags.has("--live")) return live(paths, opts);
+  if (flags.has("--tail")) return tail(paths, opts);
   const projects = loadAll(paths, opts);
   if (projects.length === 0) {
     console.error("No transcripts with usage found.");

@@ -33,7 +33,7 @@ dclaude [path ...] [options]
 | `--no-calls` | One row per turn; hide the per-API-call rows |
 | `--csv` | CSV instead of Markdown: one row per API call (per turn with `--no-calls`, per project with `--summary`). Times are ISO 8601 UTC |
 | `--conductor` | Merge `.../conductor/workspaces/<project>/<workspace>` folders into one project, `.../conductor/workspaces/<project>` |
-| `--live` | Full-screen view of the most recent turns, refreshed every second. Press `q` or Ctrl-C to quit |
+| `--tail` | Full-screen view of the most recent turns, refreshed every second: project, `INPUT-NEW` (new-input + cache_write), `INPUT-CACHED` (cache_read), `OUTPUT`, and the start of the prompt. Press `q` or Ctrl-C to quit |
 | `--help`, `-h` | List the options and columns |
 | `--version`, `-v` | Print the version |
 
@@ -44,7 +44,7 @@ dclaude > usage.md                       # full Markdown report
 dclaude --csv > usage.csv                # every API call, for a spreadsheet
 dclaude --summary --conductor            # one row per project, conductor workspaces merged
 dclaude ~/.claude/projects/-Users-me-repos-app --no-calls
-dclaude --live
+dclaude --tail
 ```
 
 ## Columns
