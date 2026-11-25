@@ -33,7 +33,7 @@ dclaude [path ...] [options]
 | `--no-calls` | One row per turn; hide the per-API-call rows |
 | `--csv` | CSV instead of Markdown: one row per API call (per turn with `--no-calls`, per project with `--summary`). Times are ISO 8601 UTC |
 | `--conductor` | Merge `.../conductor/workspaces/<project>/<workspace>` folders into one project, `.../conductor/workspaces/<project>` |
-| `--tail` | Full-screen view of the most recent turns, refreshed every second: project, `INPUT-NEW` (new-input + cache_write), `INPUT-CACHED` (cache_read), `OUTPUT`, and the start of the prompt. Press `q` or Ctrl-C to quit |
+| `--tail` | Full-screen view of the most recent turns, refreshed every second: project, `INPUT-NEW` (new-input + cache_write), `INPUT-CACHED` (cache_read), `OUTPUT`, the start of the prompt, and `COST` when a price file exists (see [Costs in `--tail`](#costs-in---tail)). Press `q` or Ctrl-C to quit |
 | `--help`, `-h` | List the options and columns |
 | `--version`, `-v` | Print the version |
 
@@ -46,6 +46,60 @@ dclaude --summary --conductor            # one row per project, conductor worksp
 dclaude ~/.claude/projects/-Users-me-repos-app --no-calls
 dclaude --tail
 ```
+
+## Costs in `--tail`
+
+If `~/.dclaude_costs` (or `~/dclaude_costs`) exists, `dclaude` reads it at startup and `--tail` adds a `COST` column on the right: each turn's cost in dollars, combining new-input, output, cache writes (priced by cache TTL, 5-minute or 1-hour) and cache reads. The file is a JSON object keyed by model name, exactly as it appears in the transcripts (e.g. `claude-opus-5-5`):
+
+```json
+{
+  "claude-opus-5-5": {
+    "input":               { "dollarCost": 5,    "perTokens": 1_000_000 },
+    "output":              { "dollarCost": 25,   "perTokens": 1_000_000 },
+    "5mPromptCacheWrite":  { "dollarCost": 6.25, "perTokens": 1_000_000 },
+    "60mPromptCacheWrite": { "dollarCost": 10,   "perTokens": 1_000_000 },
+    "hitAndRefresh":       { "dollarCost": 0.5,  "perTokens": 1_000_000 }
+  }
+}
+```
+
+### Prices that depend on prompt size
+
+Some models charge more when the prompt is long. Add `overPromptTokens` to such a model, keyed by token count, with the same five prices for calls whose prompt is over that size. The prompt size is the call's whole input: new-input + cache_write + cache_read. Each call is priced on its own, and when there are several thresholds, the largest one the prompt exceeds wins. Models without `overPromptTokens` use one price for every call.
+
+```json
+{
+  "claude-haiku-5-5": {
+    "input":               { "dollarCost": 0.10,  "perTokens": 1_000_000 },
+    "output":              { "dollarCost": 0.50,  "perTokens": 1_000_000 },
+    "5mPromptCacheWrite":  { "dollarCost": 0.125, "perTokens": 1_000_000 },
+    "60mPromptCacheWrite": { "dollarCost": 0.20,  "perTokens": 1_000_000 },
+    "hitAndRefresh":       { "dollarCost": 0.01,  "perTokens": 1_000_000 },
+    "overPromptTokens": {
+      "100_000": {
+        "input":               { "dollarCost": 0.50,  "perTokens": 1_000_000 },
+        "output":              { "dollarCost": 2.50,  "perTokens": 1_000_000 },
+        "5mPromptCacheWrite":  { "dollarCost": 0.625, "perTokens": 1_000_000 },
+        "60mPromptCacheWrite": { "dollarCost": 1,     "perTokens": 1_000_000 },
+        "hitAndRefresh":       { "dollarCost": 0.05,  "perTokens": 1_000_000 }
+      }
+    }
+  }
+}
+```
+
+### Batch, fast mode and data residency
+
+Add `multipliers` to a model to price calls made in a non-default mode. Each key is a name the `flags` column shows (`batch`, `priority`, `fast`, `us-inference`, ...), and its value scales every price of a call with that flag: input, output, cache writes and cache reads. A call with several flags gets all of them multiplied together, applied on top of any `overPromptTokens` prices. A call whose flag has no multiplier for its model shows `?`, since its cost isn't known (`fallback` is the exception: it doesn't change the price).
+
+```json
+"claude-opus-5-5": {
+  ...,
+  "multipliers": { "batch": 0.5, "fast": 2, "us-inference": 1.1 }
+}
+```
+
+The figures above are only an example; fill in current prices yourself. `_` digit separators are allowed. A turn that used a model missing from the table shows `?`. If the file is malformed, `dclaude` reports the problem and exits.
 
 ## Columns
 
