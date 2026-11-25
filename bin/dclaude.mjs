@@ -20,8 +20,11 @@ Options:
   --conductor   merge .../conductor/workspaces/<project>/<workspace> folders into one
                 project, .../conductor/workspaces/<project>
   --tail        full-screen view of the most recent turns (newest first), refreshed every
-                second: project, INPUT-NEW (new-input + cache_write), INPUT-CACHED
-                (cache_read), OUTPUT, first 20 prompt chars.
+                second. Consecutive turns in the same project sit under a line naming
+                the project (with their total COST); each turn line shows the model
+                ("claude-" dropped, "multiple" if several), effort and flags when there
+                is room, INPUT-NEW (new-input + cache_write), INPUT-CACHED (cache_read),
+                OUTPUT and the start of the prompt (20+ chars).
                 Subagent turns are marked "↳". Press q or Ctrl-C to quit.
                 With a price table in ~/.dclaude_costs (or ~/dclaude_costs), a COST column
                 shows each turn's cost in dollars: new-input, output, cache writes (priced
@@ -488,6 +491,20 @@ const home = homedir();
 const tilde = (p) => (p.startsWith(home) ? "~" + p.slice(home.length) : p);
 const fit = (s, w) => (w <= 0 ? "" : s.length > w ? s.slice(0, w - 1) + "…" : s.padEnd(w));
 
+/** "claude-opus-5-5" -> "opus-5-5"; a turn that used several models -> "multiple". */
+function turnModel(calls) {
+  const used = calls.filter((c) => c.input + c.output > 0);
+  const models = [...new Set((used.length ? used : calls).map((c) => c.model.replace(/^claude-/, "")))];
+  return models.length > 1 ? "multiple" : models[0] ?? "-";
+}
+
+/** Effort level(s) and flags of a turn, e.g. "high fast" (the least important --tail info). */
+function turnExtra(calls) {
+  if (calls.length === 0) return "-";
+  const efforts = [...new Set(calls.map((c) => c.effort).filter((e) => e && e !== "—"))];
+  return [efforts.join("/"), turnFlags(calls).replaceAll(", ", " ")].filter(Boolean).join(" ");
+}
+
 /** Every turn across all transcripts (subagent turns included), newest first. */
 function recentTurns(projects, rates) {
   const out = [];
@@ -500,10 +517,12 @@ function recentTurns(projects, rates) {
           out.push({
             project: tilde(p.name),
             ts: turn.calls[0]?.start ?? turn.ts ?? "",
+            model: (sub ? "↳ " : "") + turnModel(turn.calls),
+            extra: turnExtra(turn.calls),
             inputNew: tot.new_input + tot.cache_write,
             inputCached: tot.cache_read,
             output: tot.output,
-            prompt: (sub ? "↳ " : "") + turn.prompt.split(/\s+/).join(" ").trim(),
+            prompt: turn.prompt.split(/\s+/).join(" ").trim(),
             cost: rates ? costOf(turn.calls, rates) : null,
           });
         }
@@ -514,35 +533,80 @@ function recentTurns(projects, rates) {
 }
 
 const dollars = (n) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money = (c) => (c == null ? "?" : "$" + dollars(c));
+
+/**
+ * The lines below the column headings: a project line each time the project changes (with
+ * the cost of that run of turns), then one indented line per turn. At most `max` lines, and
+ * never a project line with no turn under it.
+ */
+function tailLines(turns, rates, max) {
+  const lines = [];
+  for (let i = 0; i < turns.length && lines.length < max; ) {
+    let j = i;
+    while (j < turns.length && turns[j].project === turns[i].project) j++;
+    const run = turns.slice(i, j), costs = run.map((t) => t.cost);
+    const cost = rates ? (costs.includes(null) ? null : costs.reduce((a, b) => a + b, 0)) : null;
+    if (lines.length + 1 >= max) break;
+    lines.push({ project: run[0].project, cost });
+    for (const t of run) {
+      if (lines.length >= max) break;
+      lines.push({ turn: t });
+    }
+    i = j;
+  }
+  return lines;
+}
 
 function tail(paths, opts, rates) {
   const out = process.stdout;
-  const PROMPT_W = 20, GAP = " ";
-  const HEADS = ["PROJECT", "INPUT-NEW", "INPUT-CACHED", "OUTPUT", "PROMPT", ...(rates ? ["COST"] : [])];
+  const PROMPT_W = 20, GAP = " ", INDENT = "    ";
+  const HEADS = ["PROJECT / MODEL", "INPUT-NEW", "INPUT-CACHED", "OUTPUT", "PROMPT", ...(rates ? ["COST"] : [])];
   const render = () => {
     // Stay off the last column: after a character there, the "\x1b[K" below erases it in
     // some terminals (e.g. macOS Terminal).
     const rows = out.rows || 24, cols = (out.columns || 80) - 1;
     const turns = recentTurns(loadAll(paths, opts), rates);
-    const cells = turns.slice(0, Math.max(0, rows - 2)).map((t) => [t.project, fmt(t.inputNew), fmt(t.inputCached), fmt(t.output), t.prompt,
-      ...(rates ? [t.cost == null ? "?" : "$" + dollars(t.cost)] : [])]);
+    const body = tailLines(turns, rates, Math.max(0, rows - 2));
+    const shown = body.filter((l) => l.turn).map((l) => l.turn);
+    const cells = shown.map((t) => [INDENT + t.model, fmt(t.inputNew), fmt(t.inputCached), fmt(t.output), t.prompt,
+      ...(rates ? [money(t.cost)] : [])]);
+    const groupCosts = body.filter((l) => !l.turn).map((l) => money(l.cost));
     // Number columns are as wide as their widest value or header.
     const w = HEADS.map((h, i) => Math.max(h.length, ...cells.map((c) => c[i].length)));
+    if (rates) w[5] = Math.max(w[5], ...groupCosts.map((c) => c.length));
     const fixed = w[1] + w[2] + w[3] + (rates ? w[5] + GAP.length : 0) + 4 * GAP.length;
-    // COST sits right of the prompt, so on a narrow screen shrink the prompt, then the
-    // project (down to 1), rather than let the right edge clip the cost.
-    const promptW = rates ? Math.min(PROMPT_W, Math.max(0, cols - fixed - 10)) : PROMPT_W;
-    const projW = Math.max(rates ? 1 : 10, cols - fixed - promptW);
+    // The rest is split between the first column (model, then effort/flags) and the prompt.
+    // On a narrow screen, give up the effort/flags first, then the prompt, then the model
+    // (down to 1), rather than let the right edge clip the cost.
+    const extraW = Math.max(0, ...shown.map((t) => (t.extra ? t.extra.length + 1 : 0)));
+    const room = cols - fixed;
+    const modelW = Math.max(1, Math.min(w[0], room));
+    const promptW = Math.max(0, Math.min(PROMPT_W, room - modelW));
+    const firstW = modelW + Math.max(0, Math.min(extraW, room - modelW - promptW));
+    const lastW = Math.max(promptW, room - firstW); // a wide screen shows more of the prompt
     const line = (c) =>
-      [fit(c[0], projW), c[1].padStart(w[1]), c[2].padStart(w[2]), c[3].padStart(w[3]),
-        rates ? fit(c[4], promptW) : fit(c[4], promptW).trimEnd(),
+      [fit(c[0], firstW), c[1].padStart(w[1]), c[2].padStart(w[2]), c[3].padStart(w[3]),
+        rates ? fit(c[4], lastW) : fit(c[4], lastW).trimEnd(),
         ...(rates ? [c[5].padStart(w[5])] : [])].join(GAP).trimEnd().slice(0, cols);
+    const first = (t) => {
+      const m = INDENT + t.model;
+      return t.extra && firstW > m.length ? fit(m.padEnd(w[0]) + " " + t.extra, firstW) : m;
+    };
+    const turnLine = (t) => line([first(t), fmt(t.inputNew), fmt(t.inputCached), fmt(t.output), t.prompt,
+      ...(rates ? [money(t.cost)] : [])]);
+    // A project line: the path across the row, and the run's total under COST.
+    const projectLine = (l) => {
+      const costCell = rates ? GAP + money(l.cost).padStart(w[5]) : "";
+      const text = rates ? fit(l.project, cols - costCell.length) + costCell : fit(l.project, cols).trimEnd();
+      return "\x1b[1m" + text.slice(0, cols) + "\x1b[0m";
+    };
     const now = new Date();
     const lines = [
       fit(`Claude Code usage · ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}` +
         ` · ${turns.length} turns · q to quit`, cols),
       "\x1b[7m" + fit(line(HEADS), cols) + "\x1b[0m",
-      ...cells.map(line),
+      ...body.map((l) => (l.turn ? turnLine(l.turn) : projectLine(l))),
     ];
     out.write("\x1b[H" + lines.map((l) => l + "\x1b[K").join("\n") + "\x1b[J");
   };
