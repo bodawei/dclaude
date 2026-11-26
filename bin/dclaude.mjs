@@ -17,8 +17,10 @@ Options:
   --no-calls    one row per turn; hide the per-API-call rows
   --csv         CSV instead of Markdown: one row per API call (per turn with --no-calls,
                 per project with --summary); times are ISO 8601 UTC
-  --conductor   merge .../conductor/workspaces/<project>/<workspace> folders into one
-                project, .../conductor/workspaces/<project>
+  --hide-worktrees
+                merge workspace folders into their project: <project>/.claude/worktrees/<name>
+                into <project>, and .../conductor/workspaces/<project>/<workspace> into
+                .../conductor/workspaces/<project>
   --tail        full-screen view of the most recent turns (newest first), refreshed every
                 second. Consecutive turns in the same project sit under a line naming
                 the project (with their total COST); each turn line shows the model
@@ -68,7 +70,7 @@ Columns:
   cache_read      input tokens served from the prompt cache (cache_read_input_tokens)
   thinking        thinking tokens (subset of output, when reported)`;
 
-const KNOWN_FLAGS = new Set(["--summary", "--no-calls", "--csv", "--conductor", "--tail", "--help", "-h", "--version", "-v"]);
+const KNOWN_FLAGS = new Set(["--summary", "--no-calls", "--csv", "--hide-worktrees", "--tail", "--help", "-h", "--version", "-v"]);
 const FIELDS = ["input", "output", "new_input", "cache_write", "cache_read", "thinking"];
 const DEFAULT_ROOT = join(homedir(), ".claude", "projects");
 
@@ -633,29 +635,42 @@ function tail(paths, opts, rates) {
 
 // ---------- main ----------
 
-const CONDUCTOR_RE = /^(.*\/conductor\/workspaces\/[^/]+)\/([^/]+)/;
+// Workspace folders that belong to one project: [project, workspace] capture groups.
+const WORKSPACE_RES = [
+  /^(.*)\/\.claude\/worktrees\/([^/]+)/, // Claude Code: <project>/.claude/worktrees/<workspace>
+  /^(.*\/conductor\/workspaces\/[^/]+)\/([^/]+)/, // Conductor: .../conductor/workspaces/<project>/<workspace>
+];
+const matchWorkspace = (path) => {
+  for (const re of WORKSPACE_RES) {
+    const m = path?.match(re);
+    if (m) return m;
+  }
+  return null;
+};
 
-/** Merge .../conductor/workspaces/<project>/<workspace> folders into one project each. */
-function groupConductor(projects) {
+/** Merge Claude Code worktree and conductor workspace folders into one project each. */
+function groupWorkspaces(projects) {
   const out = [], groups = new Map();
   for (const p of projects) {
-    const m = p.name.match(CONDUCTOR_RE);
+    const m = matchWorkspace(p.name);
     if (!m) { out.push(p); continue; }
     if (!groups.has(m[1])) groups.set(m[1], []);
     groups.get(m[1]).push(p);
   }
   for (const [name, members] of groups) {
+    const existing = out.findIndex((p) => p.name === name); // sessions run in the project itself
+    if (existing >= 0) members.unshift(...out.splice(existing, 1));
     out.push(makeProject(name, members.map((p) => p.dir).join(", "), members.flatMap((p) => p.sessions)));
   }
   return out.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** Workspace name of a session inside a conductor workspace, else null. */
-const workspaceOf = (s) => s.cwd?.match(CONDUCTOR_RE)?.[2] ?? null;
+/** Workspace name of a session inside a Claude Code worktree or conductor workspace, else null. */
+const workspaceOf = (s) => matchWorkspace(s.cwd)?.[2] ?? null;
 
-function loadAll(paths, { conductor = false } = {}) {
+function loadAll(paths, { hideWorktrees = false } = {}) {
   let projects = paths.flatMap(loadPath);
-  if (conductor) projects = groupConductor(projects);
+  if (hideWorktrees) projects = groupWorkspaces(projects);
   // Two folders can record the same cwd (e.g. a copied or renamed project folder).
   const counts = Map.groupBy(projects, (p) => p.name);
   for (const p of projects) {
@@ -679,7 +694,7 @@ function main(argv) {
   }
   const paths = (args.length ? args : [DEFAULT_ROOT])
     .map((a) => resolve(a.replace(/^~(?=$|\/)/, homedir())));
-  const opts = { conductor: flags.has("--conductor") };
+  const opts = { hideWorktrees: flags.has("--hide-worktrees") };
   const rates = loadCosts();
   if (flags.has("--tail")) return tail(paths, opts, rates);
   const projects = loadAll(paths, opts);
