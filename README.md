@@ -32,7 +32,7 @@ dclaude [path ...] [options]
 | `--summary` | Only the per-project summary table |
 | `--no-calls` | One row per turn; hide the per-API-call rows |
 | `--csv` | CSV instead of Markdown: one row per API call (per turn with `--no-calls`, per project with `--summary`). Times are ISO 8601 UTC |
-| `--conductor` | Merge `.../conductor/workspaces/<project>/<workspace>` folders into one project, `.../conductor/workspaces/<project>` |
+| `--hide-worktrees` | Merge workspace folders into their project: Claude Code worktrees `<project>/.claude/worktrees/<name>` into `<project>`, and `.../conductor/workspaces/<project>/<workspace>` into `.../conductor/workspaces/<project>` |
 | `--tail` | Full-screen view of the most recent turns, refreshed every second. Consecutive turns in the same project are grouped under a line naming the project (with their total `COST`). Each turn line shows the model (`claude-` dropped, `multiple` if the turn used several), its effort and flags when there is room, `INPUT-NEW` (new-input + cache_write), `INPUT-CACHED` (cache_read), `OUTPUT`, the start of the prompt, and `COST` when a price file exists (see [Costs in `--tail`](#costs-in---tail)). Press `q` or Ctrl-C to quit |
 | `--help`, `-h` | List the options and columns |
 | `--version`, `-v` | Print the version |
@@ -42,7 +42,7 @@ Examples:
 ```sh
 dclaude > usage.md                       # full Markdown report
 dclaude --csv > usage.csv                # every API call, for a spreadsheet
-dclaude --summary --conductor            # one row per project, conductor workspaces merged
+dclaude --summary --hide-worktrees       # one row per project, worktrees and conductor workspaces merged
 dclaude ~/.claude/projects/-Users-me-repos-app --no-calls
 dclaude --tail
 ```
