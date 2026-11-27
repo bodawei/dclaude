@@ -8,6 +8,7 @@ and cost from the session transcripts in `~/.claude/projects`. It has no runtime
 
 - `README.md`: what the tool does, its options and columns, and the development commands.
 - `docs/ROADMAP.md`: multi-session projects and their current state.
+- `docs/ARCHITECTURE.md`: the three layers and the rules that keep them apart.
 - `bin/dclaude.mjs`: the command line. Its `--help` text is part of the interface; keep it in
   step with `README.md`.
 - The header comment of each file under `lib/`, which says which layer it belongs to.
@@ -64,47 +65,13 @@ never ships.
 
 ## Architecture
 
-The program is three layers, one folder each, run in order by `bin/dclaude.mjs`:
+Read `docs/ARCHITECTURE.md` before changing anything under `lib/` or `bin/`. It is the canonical
+description of the three layers (`lib/load/`, `lib/transform/`, `lib/present/`), the rules that
+keep them apart, and where each kind of change goes. In short: imports point down only, loading
+and transformation never print or exit, loaded data is never mutated, and each output is its own
+file in `lib/present/`. If a change needs to break one of those rules, propose updating
+`docs/ARCHITECTURE.md` first.
 
-```text
-├── bin/dclaude.mjs                   Command line: options, help text, runs the three layers
-├── lib/load/                         Layer 1, loading: read files, decode them, nothing else
-│   ├── transcripts.mjs               .jsonl transcripts -> projects, sessions, turns, calls
-│   └── prices.mjs                    ~/.dclaude_costs -> per-token rates
-├── lib/transform/                    Layer 2, transformation: independent of any output
-│   ├── projects.mjs                  totals, ids, empty data dropped, workspaces merged, turns
-│   └── costs.mjs                     pricing calls; null when a cost can't be known
-└── lib/present/                      Layer 3, presentation: one file per output
-    ├── common.mjs                    shared helpers: times, secs, numbers, money, fit
-    ├── markdown.mjs                  the Markdown report (default)
-    ├── csv.mjs                       --csv
-    └── tail.mjs                      --tail: tailFrame() lays out a screen, runTail() drives it
-```
-
-1. **Loading** (`lib/load/`) reads files and decodes them into plain data. It decodes what the
-   file format forces (several records per API response, so calls are de-duplicated by message
-   id) and nothing more: no totals, no filtering, no merging, no names.
-2. **Transformation** (`lib/transform/`) turns that into the model every output uses: totals,
-   ids, empty sessions and projects dropped, worktrees merged (`--hide-worktrees`), duplicate
-   project names told apart, costs, and every turn newest first. Nothing here knows how the
-   result will be shown.
-3. **Presentation** (`lib/present/`) prepares and renders one output per file. Each presenter
-   returns text or lines; only `bin/dclaude.mjs` and `runTail()` write to the terminal.
-   Helpers used by more than one presenter go in `common.mjs`.
-
-Rules that keep the layers apart:
-
-- Imports point down only: presentation may import transformation, transformation may import
-  nothing from presentation, and loading imports from neither.
-- Loading and transformation never print, read the clock, or exit. Loading throws an `Error`
-  (with `path` set for a bad price file), and `bin/dclaude.mjs` reports it and sets the exit
-  code.
-- Nothing mutates the loaded data: `--tail` reloads every second and reuses parsed
-  transcripts from a cache. Transformation returns new objects.
-- A new output is a new file in `lib/present/`. A new derived value that more than one output
-  needs belongs in `lib/transform/`, not in a presenter.
-- Each file lists its exports in one `export { … }` at the end. `bin/dclaude.mjs` runs `main()`
-  only when it is the command being executed.
 - The tool only reads local files. Do not add network access, telemetry, or writes outside
   stdout.
 - Node 21 or later (`engines` in `package.json`). Use only `node:` built-ins; do not add a runtime
