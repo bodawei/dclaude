@@ -604,9 +604,12 @@ function tail(paths, opts, rates) {
       return "\x1b[1m" + text.slice(0, cols) + "\x1b[0m";
     };
     const now = new Date();
+    const stamp = fmtTime(now.toISOString()).replace(" ", "T");
+    const allCosts = turns.map((t) => t.cost);
+    const total = rates ? (allCosts.includes(null) ? null : allCosts.reduce((a, b) => a + b, 0)) : null;
     const lines = [
-      fit(`Claude Code usage · ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}` +
-        ` · ${turns.length} turns · q to quit`, cols),
+      fit(`Claude Code usage · ${stamp} · ${turns.length} turns` +
+        (rates ? ` ${money(total)} cost` : "") + " · q to quit", cols),
       "\x1b[7m" + fit(line(HEADS), cols) + "\x1b[0m",
       ...body.map((l) => (l.turn ? turnLine(l.turn) : projectLine(l))),
     ];
