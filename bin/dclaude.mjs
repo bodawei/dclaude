@@ -44,9 +44,10 @@ Options:
                 cache_write), INPUT-CACHED (cache_read), OUTPUT and the start of the
                 prompt (20+ chars).
                 Subagent turns are marked "↳". Press q or Ctrl-C to quit.
-                With a price table in ~/.dclaude_costs (or ~/dclaude_costs), a COST column
-                shows each turn's cost in dollars: new-input, output, cache writes (priced
-                by TTL) and cache_read combined. "?" means a model is missing from the table.
+                With a price table in ~/.dclaude_costs.json (or ~/dclaude_costs.json), a
+                COST column shows each turn's cost in dollars: new-input, output, cache
+                writes (priced by TTL) and cache_read combined. "?" means a model is missing
+                from the table. The file name must end in ".json".
                 Format, keyed by model name (example figures):
                   { "claude-opus-5-5": {
                       "input":               { "dollarCost": 5,    "perTokens": 1000000 },

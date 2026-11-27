@@ -49,7 +49,7 @@ dclaude --tail
 
 ## Costs in `--tail`
 
-If `~/.dclaude_costs` (or `~/dclaude_costs`) exists, `dclaude` reads it at startup and `--tail` adds a `COST` column on the right: each turn's cost in dollars, combining new-input, output, cache writes (priced by cache TTL, 5-minute or 1-hour) and cache reads. The file is a JSON object keyed by model name, exactly as it appears in the transcripts (e.g. `claude-opus-5-5`):
+If `~/.dclaude_costs.json` (or `~/dclaude_costs.json`) exists (the `.json` suffix is required), `dclaude` reads it at startup and `--tail` adds a `COST` column on the right: each turn's cost in dollars, combining new-input, output, cache writes (priced by cache TTL, 5-minute or 1-hour) and cache reads. The file is a JSON object keyed by model name, exactly as it appears in the transcripts (e.g. `claude-opus-5-5`):
 
 ```json
 {
@@ -138,7 +138,7 @@ node bin/dclaude.mjs --summary
 ├── bin/dclaude.mjs                   Command line: options, help text, runs the three layers
 ├── lib/load/                         Layer 1, loading: read files, decode them, nothing else
 │   ├── transcripts.mjs               .jsonl transcripts -> projects, sessions, turns, calls
-│   └── prices.mjs                    ~/.dclaude_costs -> per-token rates
+│   └── prices.mjs                    ~/.dclaude_costs.json -> per-token rates
 ├── lib/transform/                    Layer 2, transformation: independent of any output
 │   ├── projects.mjs                  totals, ids, empty data dropped, workspaces merged, turns
 │   └── costs.mjs                     pricing calls; null when a cost can't be known

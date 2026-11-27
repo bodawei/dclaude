@@ -35,7 +35,7 @@ project, session, turn and API call.
 ### Done when
 
 The Markdown and CSV reports, `--summary`, `--no-calls`, `--hide-worktrees` and `--tail` (with
-per-turn and per-project costs from `~/.dclaude_costs`) work against a real `~/.claude/projects`.
+per-turn and per-project costs from `~/.dclaude_costs.json`) work against a real `~/.claude/projects`.
 
 ### Current state
 
