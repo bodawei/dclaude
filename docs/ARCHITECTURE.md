@@ -16,10 +16,12 @@ bin/dclaude.mjs              command line: options, --help, runs the layers, pri
 lib/
 ├── load/                    LAYER 1: LOADING
 │   ├── transcripts.mjs      .jsonl transcripts -> RawProject[] (sessions, subagents, turns, calls)
-│   └── prices.mjs           ~/.dclaude_costs.json -> rates (dollars per token)
+│   ├── prices.mjs           ~/.dclaude_costs.json -> rates (dollars per token)
+│   └── usage.mjs            claude -p /usage -> Usage (percentage used, reset time)
 ├── transform/               LAYER 2: TRANSFORMATION
 │   ├── projects.mjs         RawProject[] -> Project[]; Project[] -> TurnEntry[]
-│   └── costs.mjs            costOf(calls, rates), sumCosts(costs)
+│   ├── costs.mjs            costOf(calls, rates), sumCosts(costs)
+│   └── windows.mjs          windowOf(kind, usage, now) -> Window (--window)
 └── present/                 LAYER 3: PRESENTATION
     ├── common.mjs           helpers more than one presenter uses: fmtTime, secs, money, fit, ...
     ├── markdown.mjs         markdownReport(projects, options) -> text      (default output)
@@ -72,7 +74,13 @@ paths ──▶ loadPaths() ──▶ RawProject[] ──▶ buildProjects() ─
                                                                   │          csvSummary()
                                                                   └─▶ allTurns() ──▶ TurnEntry[] ──▶ tailFrame()
 ~/.dclaude_costs.json ──▶ loadCosts() ──▶ rates ─────────────────────────┘ (costOf)
+claude -p /usage ──▶ readUsage() ──▶ Usage ──▶ windowOf() ──▶ Window ──▶ buildProjects({ since })
+                                                                  └──▶ header line of each output
 ```
+
+With `--window`, `bin/dclaude.mjs` reads the window first and passes its start to
+`buildProjects()`, which keeps only the turns that reach it. For `--tail`, `bin/dclaude.mjs`
+reads the window again when it resets and every 15 minutes.
 
 For the Markdown and CSV reports this runs once. For `--tail`, `runTail()` calls back into the
 whole chain every second. Re-reading every transcript each time would be too slow, so the loading
@@ -117,6 +125,11 @@ no test reads the real `~/.claude`. `runTail()` needs a real terminal and has no
 
 ## Decisions
 
+- **2026-11-27: `--window` runs `claude -p /usage`.** Transcripts record a window's reset time
+  only once a limit is hit, and claude.ai's own usage endpoint needs a browser session cookie.
+  `/usage` already has the numbers, makes no model call, and needs no credentials of ours. Its
+  output is text meant for people, so `lib/load/usage.mjs` parses it and fails loudly when it
+  can't. This is the one outside program dclaude runs.
 - **2026-11-27: three layers, not two.** A split into "reading" and "output" (roadmap P4 as first
   written) would have left the totals, merging and costs inside one or the other. Those are
   shared by every output and depend on none of them, so they are a layer of their own.
