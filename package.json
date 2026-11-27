@@ -2,7 +2,16 @@
   "name": "dclaude",
   "version": "0.1.0",
   "description": "Dump Claude Code token usage (per turn and per API call) from ~/.claude/projects as Markdown, CSV, or a live top-style view (--tail)",
-  "type": "module",
+  "keywords": [
+    "anthropic",
+    "claude",
+    "claude-code",
+    "cli",
+    "prompt-caching",
+    "tokens",
+    "usage"
+  ],
+  "license": "MIT",
   "bin": {
     "dclaude": "bin/dclaude.mjs"
   },
@@ -10,17 +19,20 @@
     "bin/",
     "README.md"
   ],
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check"
+  },
+  "devDependencies": {
+    "oxfmt": "^0.80.0",
+    "oxlint": "^1.95.0"
+  },
   "engines": {
     "node": ">=21"
   },
-  "keywords": [
-    "claude",
-    "claude-code",
-    "anthropic",
-    "tokens",
-    "usage",
-    "prompt-caching",
-    "cli"
-  ],
-  "license": "MIT"
+  "packageManager": "pnpm@10.33.3"
 }

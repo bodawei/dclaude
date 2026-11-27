@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // dclaude: token usage report for Claude Code session transcripts. Run `dclaude --help`.
-import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
-import { join, basename, resolve } from "node:path";
+import { readFileSync, readdirSync, statSync, existsSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
-
+import { join, basename, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const HELP = `dclaude: token usage report for Claude Code session transcripts (.jsonl).
 
@@ -71,7 +71,17 @@ Columns:
   cache_read      input tokens served from the prompt cache (cache_read_input_tokens)
   thinking        thinking tokens (subset of output, when reported)`;
 
-const KNOWN_FLAGS = new Set(["--summary", "--no-calls", "--csv", "--hide-worktrees", "--tail", "--help", "-h", "--version", "-v"]);
+const KNOWN_FLAGS = new Set([
+  "--summary",
+  "--no-calls",
+  "--csv",
+  "--hide-worktrees",
+  "--tail",
+  "--help",
+  "-h",
+  "--version",
+  "-v",
+]);
 const FIELDS = ["input", "output", "new_input", "cache_write", "cache_read", "thinking"];
 const DEFAULT_ROOT = join(homedir(), ".claude", "projects");
 
@@ -100,7 +110,9 @@ function usageOf(u) {
     cache_read,
     thinking: u.output_tokens_details?.thinking_tokens ?? 0,
     // Split of cache_write by TTL; without the breakdown, the API default (5m) applies.
-    cache_write_5m: u.cache_creation ? u.cache_creation.ephemeral_5m_input_tokens ?? 0 : cache_write,
+    cache_write_5m: u.cache_creation
+      ? (u.cache_creation.ephemeral_5m_input_tokens ?? 0)
+      : cache_write,
     cache_write_1h: u.cache_creation?.ephemeral_1h_input_tokens ?? 0,
   };
 }
@@ -130,7 +142,11 @@ function readRecords(path) {
   const out = [];
   for (const line of readFileSync(path, "utf8").split("\n")) {
     if (!line.trim()) continue;
-    try { out.push(JSON.parse(line)); } catch { /* skip partial lines */ }
+    try {
+      out.push(JSON.parse(line));
+    } catch {
+      /* skip partial lines */
+    }
   }
   return out;
 }
@@ -155,7 +171,9 @@ function parseTranscriptUncached(path, { subagent = false } = {}) {
   );
   const turns = [];
   const seen = new Map();
-  let current = null, title = null, cwd = null;
+  let current = null,
+    title = null,
+    cwd = null;
   for (const rec of records) {
     if (rec.type === "custom-title" && rec.customTitle) title = rec.customTitle;
     cwd ??= rec.cwd ?? null;
@@ -186,7 +204,10 @@ function parseTranscriptUncached(path, { subagent = false } = {}) {
   }
   const calls = turns.flatMap((t) => t.calls);
   return {
-    path, title, cwd, turns,
+    path,
+    title,
+    cwd,
+    turns,
     start: calls[0]?.start ?? null,
     end: calls.at(-1)?.end ?? null,
     totals: sum(calls),
@@ -216,24 +237,27 @@ const COST_KEYS = ["input", "output", "5mPromptCacheWrite", "60mPromptCacheWrite
  * flags column uses, each scales every price of a call that has that flag. Numbers, and the
  * overPromptTokens keys, may use digit separators (1_000_000). Returns
  * { model: { base: rates, tiers: [{ over, rates }] (largest first), multipliers } },
- * where rates are { key: dollars per token }.
+ * where rates are { key: dollars per token }. A malformed file is reported and exits.
  */
-function loadCosts() {
-  const path = COST_FILES.find((p) => existsSync(p));
+function loadCosts(path = COST_FILES.find((p) => existsSync(p))) {
   if (!path) return null;
-  const fail = (why) => {
-    console.error(`dclaude: ${tilde(path)}: ${why}`);
-    process.exit(2);
-  };
-  let table;
   try {
-    // Drop "_" between digits outside strings, so 1_000_000 parses.
-    const text = readFileSync(path, "utf8").replace(/("(?:[^"\\]|\\.)*")|(?<=\d)_(?=\d)/g, (m, s) => s ?? "");
-    table = JSON.parse(text);
+    return parseCosts(readFileSync(path, "utf8"));
   } catch (e) {
-    fail(e.message);
+    console.error(`dclaude: ${tilde(path)}: ${e.message}`);
+    process.exit(2);
   }
-  const isObj = (x) => x && typeof x === "object" && !Array.isArray(x);
+}
+
+const fail = (why) => {
+  throw new Error(why);
+};
+const isObj = (x) => x && typeof x === "object" && !Array.isArray(x);
+
+/** The price table's text -> rates (see loadCosts). Throws an Error saying what is wrong. */
+function parseCosts(text) {
+  // Drop "_" between digits outside strings, so 1_000_000 parses.
+  const table = JSON.parse(text.replace(/("(?:[^"\\]|\\.)*")|(?<=\d)_(?=\d)/g, (m, s) => s ?? ""));
   if (!isObj(table)) fail("expected an object keyed by model name");
   const pricesOf = (entry, where) => {
     const r = {};
@@ -252,15 +276,21 @@ function loadCosts() {
     if (!isObj(over)) fail(`${model}.overPromptTokens must be an object keyed by prompt size`);
     const tiers = Object.entries(over).map(([size, prices]) => {
       const n = Number(size.replaceAll("_", ""));
-      if (!Number.isInteger(n) || n < 0) fail(`${model}.overPromptTokens: "${size}" is not a token count`);
+      if (!Number.isInteger(n) || n < 0)
+        fail(`${model}.overPromptTokens: "${size}" is not a token count`);
       return { over: n, rates: pricesOf(prices, `${model}.overPromptTokens.${size}`) };
     });
     const multipliers = entry?.multipliers ?? {};
     if (!isObj(multipliers)) fail(`${model}.multipliers must be an object keyed by flag name`);
     for (const [flag, x] of Object.entries(multipliers)) {
-      if (typeof x !== "number" || x < 0) fail(`${model}.multipliers.${flag} must be a non-negative number`);
+      if (typeof x !== "number" || x < 0)
+        fail(`${model}.multipliers.${flag} must be a non-negative number`);
     }
-    rates[model] = { base: pricesOf(entry, model), tiers: tiers.sort((a, b) => b.over - a.over), multipliers };
+    rates[model] = {
+      base: pricesOf(entry, model),
+      tiers: tiers.toSorted((a, b) => b.over - a.over),
+      multipliers,
+    };
   }
   return rates;
 }
@@ -288,9 +318,13 @@ function costOf(calls, rates) {
       if (!(f in m.multipliers)) return null;
       x *= m.multipliers[f];
     }
-    total += x * (call.new_input * r.input + call.output * r.output
-      + call.cache_write_5m * r["5mPromptCacheWrite"] + call.cache_write_1h * r["60mPromptCacheWrite"]
-      + call.cache_read * r.hitAndRefresh);
+    total +=
+      x *
+      (call.new_input * r.input +
+        call.output * r.output +
+        call.cache_write_5m * r["5mPromptCacheWrite"] +
+        call.cache_write_1h * r["60mPromptCacheWrite"] +
+        call.cache_read * r.hitAndRefresh);
   }
   return total;
 }
@@ -298,10 +332,17 @@ function costOf(calls, rates) {
 // ---------- discovery ----------
 
 const jsonlIn = (dir) =>
-  readdirSync(dir).filter((f) => f.endsWith(".jsonl")).sort().map((f) => join(dir, f));
+  readdirSync(dir)
+    .filter((f) => f.endsWith(".jsonl"))
+    .toSorted()
+    .map((f) => join(dir, f));
 
 function readJson(path) {
-  try { return JSON.parse(readFileSync(path, "utf8")); } catch { return {}; }
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    return {};
+  }
 }
 
 /** A session file plus the subagent transcripts in <session-id>/subagents/. */
@@ -309,26 +350,36 @@ function loadSession(file) {
   const session = parseTranscript(file);
   const subDir = join(file.replace(/\.jsonl$/, ""), "subagents");
   session.subagents = existsSync(subDir)
-    ? jsonlIn(subDir).map((f) => ({
-        ...parseTranscript(f, { subagent: true }),
-        meta: readJson(f.replace(/\.jsonl$/, ".meta.json")),
-      })).filter((s) => s.callCount > 0)
+    ? jsonlIn(subDir)
+        .map((f) =>
+          Object.assign(parseTranscript(f, { subagent: true }), {
+            meta: readJson(f.replace(/\.jsonl$/, ".meta.json")),
+          }),
+        )
+        .filter((s) => s.callCount > 0)
     : [];
   return session;
 }
 
 function loadProject(dir) {
-  const sessions = jsonlIn(dir).map(loadSession)
+  const sessions = jsonlIn(dir)
+    .map(loadSession)
     .filter((s) => s.callCount > 0 || s.subagents.length > 0);
   return makeProject(sessions.find((s) => s.cwd)?.cwd ?? basename(dir), dir, sessions);
 }
 
 /** Build a project record (with totals) from its sessions. */
 function makeProject(name, dir, sessions) {
-  sessions = [...sessions].sort((a, b) => (a.start ?? "").localeCompare(b.start ?? ""));
+  sessions = [...sessions].toSorted((a, b) => (a.start ?? "").localeCompare(b.start ?? ""));
   const all = sessions.flatMap((s) => [s, ...s.subagents]);
-  const starts = all.map((s) => s.start).filter(Boolean).sort();
-  const ends = all.map((s) => s.end).filter(Boolean).sort();
+  const starts = all
+    .map((s) => s.start)
+    .filter(Boolean)
+    .toSorted();
+  const ends = all
+    .map((s) => s.end)
+    .filter(Boolean)
+    .toSorted();
   return {
     dir,
     name,
@@ -349,7 +400,8 @@ function loadPath(p) {
     return [makeProject(s.cwd ?? basename(p), p, [s])];
   }
   if (jsonlIn(p).length > 0) return [loadProject(p)];
-  return readdirSync(p).sort()
+  return readdirSync(p)
+    .toSorted()
     .map((d) => join(p, d))
     .filter((d) => statSync(d).isDirectory())
     .map(loadProject)
@@ -363,7 +415,9 @@ function fmtTime(iso, withTime = true) {
   if (!iso) return "—";
   const d = new Date(iso);
   const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  return withTime ? `${date} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` : date;
+  return withTime
+    ? `${date} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+    : date;
 }
 /** Local time as 2026-11-27T02:26:59. */
 const isoStamp = (iso) => fmtTime(iso).replace(" ", "T");
@@ -373,7 +427,7 @@ const clean = (s, n = 100) => {
   s = s.split(/\s+/).join(" ").trim().replaceAll("|", "\\|");
   return s.length > n ? s.slice(0, n) + "…" : s;
 };
-const joined = (calls, key) => [...new Set(calls.map((c) => c[key]))].sort().join(", ") || "—";
+const joined = (calls, key) => [...new Set(calls.map((c) => c[key]))].toSorted().join(", ") || "—";
 const row = (cells) => console.log("| " + cells.join(" | ") + " |");
 const bold = (x) => `**${x}**`;
 const nums = (d, b = false) => {
@@ -383,39 +437,104 @@ const nums = (d, b = false) => {
 
 function printSummary(projects) {
   console.log("## Summary by project\n");
-  row(["project", "first", "last", "sessions", "subagents", "turns", "calls", "input", "output",
-    "new-input", "cache_write", "cache_read", "thinking"]);
+  row([
+    "project",
+    "first",
+    "last",
+    "sessions",
+    "subagents",
+    "turns",
+    "calls",
+    "input",
+    "output",
+    "new-input",
+    "cache_write",
+    "cache_read",
+    "thinking",
+  ]);
   console.log("|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|");
-  const sorted = [...projects].sort((a, b) => (b.end ?? "").localeCompare(a.end ?? ""));
+  const sorted = [...projects].toSorted((a, b) => (b.end ?? "").localeCompare(a.end ?? ""));
   for (const p of sorted) {
     const { io, rest } = nums(p.totals);
-    row([clean(p.name, 80), fmtTime(p.start, false), fmtTime(p.end, false), p.sessions.length,
-      p.subagentCount, p.turnCount, p.callCount, ...io, ...rest]);
+    row([
+      clean(p.name, 80),
+      fmtTime(p.start, false),
+      fmtTime(p.end, false),
+      p.sessions.length,
+      p.subagentCount,
+      p.turnCount,
+      p.callCount,
+      ...io,
+      ...rest,
+    ]);
   }
   const g = sum(projects.map((p) => p.totals));
   const { io, rest } = nums(g, true);
   const n = (k) => bold(projects.reduce((s, p) => s + p[k], 0));
-  row([bold("total"), "", "", bold(projects.reduce((s, p) => s + p.sessions.length, 0)),
-    n("subagentCount"), n("turnCount"), n("callCount"), ...io, ...rest]);
+  row([
+    bold("total"),
+    "",
+    "",
+    bold(projects.reduce((s, p) => s + p.sessions.length, 0)),
+    n("subagentCount"),
+    n("turnCount"),
+    n("callCount"),
+    ...io,
+    ...rest,
+  ]);
   console.log();
 }
 
 function printTranscript(t, showCalls) {
-  row(["turn", "time", "secs", "model", "thinking-level", "flags", "input", "output", "calls",
-    "new-input", "cache_write", "cache_read", "thinking", "first 100 input chars"]);
+  row([
+    "turn",
+    "time",
+    "secs",
+    "model",
+    "thinking-level",
+    "flags",
+    "input",
+    "output",
+    "calls",
+    "new-input",
+    "cache_write",
+    "cache_read",
+    "thinking",
+    "first 100 input chars",
+  ]);
   console.log("|---|---|---:|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|");
   t.turns.forEach((turn, i) => {
     if (turn.calls.length === 0) return;
-    const first = turn.calls[0], last = turn.calls.at(-1);
+    const first = turn.calls[0],
+      last = turn.calls.at(-1);
     const { io, rest } = nums(sum(turn.calls));
-    row([bold(i + 1), fmtTime(first.start), secs(first.start, last.end), joined(turn.calls, "model"),
-      joined(turn.calls, "effort"), turnFlags(turn.calls), ...io, turn.calls.length, ...rest,
-      clean(turn.prompt)]);
+    row([
+      bold(i + 1),
+      fmtTime(first.start),
+      secs(first.start, last.end),
+      joined(turn.calls, "model"),
+      joined(turn.calls, "effort"),
+      turnFlags(turn.calls),
+      ...io,
+      turn.calls.length,
+      ...rest,
+      clean(turn.prompt),
+    ]);
     if (showCalls && turn.calls.length > 1) {
       turn.calls.forEach((c, j) => {
         const n = nums(c);
-        row([`${i + 1}.${j + 1}`, fmtTime(c.start), secs(c.start, c.end), c.model, c.effort,
-          c.flags.join(", "), ...n.io, "", ...n.rest, ""]);
+        row([
+          `${i + 1}.${j + 1}`,
+          fmtTime(c.start),
+          secs(c.start, c.end),
+          c.model,
+          c.effort,
+          c.flags.join(", "),
+          ...n.io,
+          "",
+          ...n.rest,
+          "",
+        ]);
       });
     }
   });
@@ -429,7 +548,9 @@ function printProject(p, showCalls) {
   for (const s of p.sessions) {
     const ws = workspaceOf(s);
     console.log(`### ${s.title ? clean(s.title) + " — " : ""}${fmtTime(s.start)}\n`);
-    console.log(`Session ID: \`${basename(s.path, ".jsonl")}\`${ws ? ` · Workspace: \`${ws}\`` : ""}\n`);
+    console.log(
+      `Session ID: \`${basename(s.path, ".jsonl")}\`${ws ? ` · Workspace: \`${ws}\`` : ""}\n`,
+    );
     if (s.callCount > 0) printTranscript(s, showCalls);
     for (const sub of s.subagents) {
       const what = [sub.meta.agentType, sub.meta.description].filter(Boolean).join(": ");
@@ -455,34 +576,85 @@ const secsNum = (a, b) => (a && b ? ((new Date(b) - new Date(a)) / 1000).toFixed
 function printSummaryCsv(projects) {
   csvRow(["project", "first", "last", "sessions", "subagents", "turns", "calls", ...tokenCols]);
   for (const p of projects) {
-    csvRow([p.name, p.start, p.end, p.sessions.length, p.subagentCount, p.turnCount, p.callCount,
-      ...tokens(p.totals)]);
+    csvRow([
+      p.name,
+      p.start,
+      p.end,
+      p.sessions.length,
+      p.subagentCount,
+      p.turnCount,
+      p.callCount,
+      ...tokens(p.totals),
+    ]);
   }
 }
 
 /** One row per API call, or per turn with --no-calls. Times are ISO 8601 UTC. */
 function printCsv(projects, showCalls) {
-  csvRow(["project", "workspace", "session_id", "session_title", "agent_id", "agent_type",
-    "agent_description", "turn", showCalls ? "call" : "calls", "time", "secs", "model",
-    "thinking_level", "flags", ...tokenCols, "prompt"]);
+  csvRow([
+    "project",
+    "workspace",
+    "session_id",
+    "session_title",
+    "agent_id",
+    "agent_type",
+    "agent_description",
+    "turn",
+    showCalls ? "call" : "calls",
+    "time",
+    "secs",
+    "model",
+    "thinking_level",
+    "flags",
+    ...tokenCols,
+    "prompt",
+  ]);
   for (const p of projects) {
     for (const s of p.sessions) {
       for (const t of [s, ...s.subagents]) {
         const sub = t !== s;
-        const ctx = [p.name, workspaceOf(s) ?? "", basename(s.path, ".jsonl"), s.title ?? "",
+        const ctx = [
+          p.name,
+          workspaceOf(s) ?? "",
+          basename(s.path, ".jsonl"),
+          s.title ?? "",
           sub ? basename(t.path, ".jsonl").replace(/^agent-/, "") : "",
-          sub ? t.meta.agentType ?? "" : "", sub ? t.meta.description ?? "" : ""];
+          sub ? (t.meta.agentType ?? "") : "",
+          sub ? (t.meta.description ?? "") : "",
+        ];
         t.turns.forEach((turn, i) => {
           if (turn.calls.length === 0) return;
           const prompt = clean(turn.prompt).replaceAll("\\|", "|");
           if (showCalls) {
-            turn.calls.forEach((c, j) => csvRow([...ctx, i + 1, j + 1, c.start, secsNum(c.start, c.end),
-              c.model, c.effort, c.flags.join(", "), ...tokens(c), prompt]));
+            turn.calls.forEach((c, j) =>
+              csvRow([
+                ...ctx,
+                i + 1,
+                j + 1,
+                c.start,
+                secsNum(c.start, c.end),
+                c.model,
+                c.effort,
+                c.flags.join(", "),
+                ...tokens(c),
+                prompt,
+              ]),
+            );
           } else {
-            const first = turn.calls[0], last = turn.calls.at(-1);
-            csvRow([...ctx, i + 1, turn.calls.length, first.start, secsNum(first.start, last.end),
-              joined(turn.calls, "model"), joined(turn.calls, "effort"), turnFlags(turn.calls),
-              ...tokens(sum(turn.calls)), prompt]);
+            const first = turn.calls[0],
+              last = turn.calls.at(-1);
+            csvRow([
+              ...ctx,
+              i + 1,
+              turn.calls.length,
+              first.start,
+              secsNum(first.start, last.end),
+              joined(turn.calls, "model"),
+              joined(turn.calls, "effort"),
+              turnFlags(turn.calls),
+              ...tokens(sum(turn.calls)),
+              prompt,
+            ]);
           }
         });
       }
@@ -499,8 +671,10 @@ const fit = (s, w) => (w <= 0 ? "" : s.length > w ? s.slice(0, w - 1) + "…" : 
 /** "claude-opus-5-5" -> "opus-5-5"; a turn that used several models -> "multiple". */
 function turnModel(calls) {
   const used = calls.filter((c) => c.input + c.output > 0);
-  const models = [...new Set((used.length ? used : calls).map((c) => c.model.replace(/^claude-/, "")))];
-  return models.length > 1 ? "multiple" : models[0] ?? "-";
+  const models = [
+    ...new Set((used.length ? used : calls).map((c) => c.model.replace(/^claude-/, ""))),
+  ];
+  return models.length > 1 ? "multiple" : (models[0] ?? "-");
 }
 
 /** Effort level(s) and flags of a turn, e.g. "high fast" (the least important --tail info). */
@@ -534,10 +708,11 @@ function recentTurns(projects, rates) {
       }
     }
   }
-  return out.sort((a, b) => b.ts.localeCompare(a.ts));
+  return out.toSorted((a, b) => b.ts.localeCompare(a.ts));
 }
 
-const dollars = (n) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const dollars = (n) =>
+  n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const money = (c) => (c == null ? "?" : "$" + dollars(c));
 
 /**
@@ -547,10 +722,11 @@ const money = (c) => (c == null ? "?" : "$" + dollars(c));
  */
 function tailLines(turns, rates, max) {
   const lines = [];
-  for (let i = 0; i < turns.length && lines.length < max; ) {
+  for (let i = 0; i < turns.length && lines.length < max;) {
     let j = i;
     while (j < turns.length && turns[j].project === turns[i].project) j++;
-    const run = turns.slice(i, j), costs = run.map((t) => t.cost);
+    const run = turns.slice(i, j),
+      costs = run.map((t) => t.cost);
     const cost = rates ? (costs.includes(null) ? null : costs.reduce((a, b) => a + b, 0)) : null;
     if (lines.length + 1 >= max) break;
     lines.push({ project: run[0].project, latest: run[0].ts, cost });
@@ -563,19 +739,52 @@ function tailLines(turns, rates, max) {
   return lines;
 }
 
+const PATH_MIN = 20;
+
+/**
+ * A --tail project line's text: the path, then the time of its latest turn, in `room`
+ * characters at most. As room runs out, the time shrinks first: "latest" goes, then the
+ * date, then the hours, then all of it. The path keeps up to PATH_MIN characters.
+ */
+function projectLabel(project, latestIso, room) {
+  const stamp = isoStamp(latestIso),
+    clock = stamp.slice(11);
+  const latest =
+    [`  (latest ${stamp})`, `  (${stamp})`, `  (${clock})`, `  (${clock.slice(3)})`, ""].find(
+      (x) => Math.min(project.length, PATH_MIN) + x.length <= room,
+    ) ?? "";
+  return fit(project, Math.max(1, Math.min(project.length, room - latest.length))) + latest;
+}
+
 function tail(paths, opts, rates) {
   const out = process.stdout;
-  const PROMPT_W = 20, PATH_MIN = 20, GAP = " ", INDENT = "    ";
-  const HEADS = ["PROJECT / MODEL", "INPUT-NEW", "INPUT-CACHED", "OUTPUT", "PROMPT", ...(rates ? ["COST"] : [])];
+  const PROMPT_W = 20,
+    GAP = " ",
+    INDENT = "    ";
+  const HEADS = [
+    "PROJECT / MODEL",
+    "INPUT-NEW",
+    "INPUT-CACHED",
+    "OUTPUT",
+    "PROMPT",
+    ...(rates ? ["COST"] : []),
+  ];
   const render = () => {
     // Stay off the last column: after a character there, the "\x1b[K" below erases it in
     // some terminals (e.g. macOS Terminal).
-    const rows = out.rows || 24, cols = (out.columns || 80) - 1;
+    const rows = out.rows || 24,
+      cols = (out.columns || 80) - 1;
     const turns = recentTurns(loadAll(paths, opts), rates);
     const body = tailLines(turns, rates, Math.max(0, rows - 2));
     const shown = body.filter((l) => l.turn).map((l) => l.turn);
-    const cells = shown.map((t) => [INDENT + t.model, fmt(t.inputNew), fmt(t.inputCached), fmt(t.output), t.prompt,
-      ...(rates ? [money(t.cost)] : [])]);
+    const cells = shown.map((t) => [
+      INDENT + t.model,
+      fmt(t.inputNew),
+      fmt(t.inputCached),
+      fmt(t.output),
+      t.prompt,
+      ...(rates ? [money(t.cost)] : []),
+    ]);
     const groupCosts = body.filter((l) => !l.turn).map((l) => money(l.cost));
     // Number columns are as wide as their widest value or header.
     const w = HEADS.map((h, i) => Math.max(h.length, ...cells.map((c) => c[i].length)));
@@ -591,35 +800,53 @@ function tail(paths, opts, rates) {
     const firstW = modelW + Math.max(0, Math.min(extraW, room - modelW - promptW));
     const lastW = Math.max(promptW, room - firstW); // a wide screen shows more of the prompt
     const line = (c) =>
-      [fit(c[0], firstW), c[1].padStart(w[1]), c[2].padStart(w[2]), c[3].padStart(w[3]),
+      [
+        fit(c[0], firstW),
+        c[1].padStart(w[1]),
+        c[2].padStart(w[2]),
+        c[3].padStart(w[3]),
         rates ? fit(c[4], lastW) : fit(c[4], lastW).trimEnd(),
-        ...(rates ? [c[5].padStart(w[5])] : [])].join(GAP).trimEnd().slice(0, cols);
+        ...(rates ? [c[5].padStart(w[5])] : []),
+      ]
+        .join(GAP)
+        .trimEnd()
+        .slice(0, cols);
     const first = (t) => {
       const m = INDENT + t.model;
       return t.extra && firstW > m.length ? fit(m.padEnd(w[0]) + " " + t.extra, firstW) : m;
     };
-    const turnLine = (t) => line([first(t), fmt(t.inputNew), fmt(t.inputCached), fmt(t.output), t.prompt,
-      ...(rates ? [money(t.cost)] : [])]);
+    const turnLine = (t) =>
+      line([
+        first(t),
+        fmt(t.inputNew),
+        fmt(t.inputCached),
+        fmt(t.output),
+        t.prompt,
+        ...(rates ? [money(t.cost)] : []),
+      ]);
     // A project line: the path across the row, and the run's total under COST.
     const projectLine = (l) => {
       const costCell = rates ? GAP + money(l.cost).padStart(w[5]) : "";
-      // As room runs out, the time after the path shrinks first: "latest" goes, then the
-      // date, then the hours, then all of it. The path keeps up to PATH_MIN characters.
-      const room = cols - costCell.length;
-      const stamp = isoStamp(l.latest), clock = stamp.slice(11);
-      const latest = [`  (latest ${stamp})`, `  (${stamp})`, `  (${clock})`, `  (${clock.slice(3)})`, ""]
-        .find((x) => Math.min(l.project.length, PATH_MIN) + x.length <= room) ?? "";
-      const label = fit(l.project, Math.max(1, Math.min(l.project.length, room - latest.length))) + latest;
-      const text = rates ? fit(label, room) + costCell : fit(label, cols).trimEnd();
+      const labelRoom = cols - costCell.length;
+      const label = projectLabel(l.project, l.latest, labelRoom);
+      const text = rates ? fit(label, labelRoom) + costCell : fit(label, cols).trimEnd();
       return "\x1b[1m" + text.slice(0, cols) + "\x1b[0m";
     };
     const now = new Date();
     const stamp = isoStamp(now.toISOString());
     const allCosts = turns.map((t) => t.cost);
-    const total = rates ? (allCosts.includes(null) ? null : allCosts.reduce((a, b) => a + b, 0)) : null;
+    const total = rates
+      ? allCosts.includes(null)
+        ? null
+        : allCosts.reduce((a, b) => a + b, 0)
+      : null;
     const lines = [
-      fit(`Claude Code usage · ${stamp} · ${turns.length} turns` +
-        (rates ? ` ${money(total)} cost` : "") + " · q to quit", cols),
+      fit(
+        `Claude Code usage · ${stamp} · ${turns.length} turns` +
+          (rates ? ` ${money(total)} cost` : "") +
+          " · q to quit",
+        cols,
+      ),
       "\x1b[7m" + fit(line(HEADS), cols) + "\x1b[0m",
       ...body.map((l) => (l.turn ? turnLine(l.turn) : projectLine(l))),
     ];
@@ -641,7 +868,10 @@ function tail(paths, opts, rates) {
     });
   }
   // Terminals rewrap the old frame when the window changes size; wipe it before redrawing.
-  out.on("resize", () => { out.write("\x1b[2J"); render(); });
+  out.on("resize", () => {
+    out.write("\x1b[2J");
+    render();
+  });
   render();
   setInterval(render, 1000);
 }
@@ -663,19 +893,29 @@ const matchWorkspace = (path) => {
 
 /** Merge Claude Code worktree and conductor workspace folders into one project each. */
 function groupWorkspaces(projects) {
-  const out = [], groups = new Map();
+  const out = [],
+    groups = new Map();
   for (const p of projects) {
     const m = matchWorkspace(p.name);
-    if (!m) { out.push(p); continue; }
+    if (!m) {
+      out.push(p);
+      continue;
+    }
     if (!groups.has(m[1])) groups.set(m[1], []);
     groups.get(m[1]).push(p);
   }
   for (const [name, members] of groups) {
     const existing = out.findIndex((p) => p.name === name); // sessions run in the project itself
     if (existing >= 0) members.unshift(...out.splice(existing, 1));
-    out.push(makeProject(name, members.map((p) => p.dir).join(", "), members.flatMap((p) => p.sessions)));
+    out.push(
+      makeProject(
+        name,
+        members.map((p) => p.dir).join(", "),
+        members.flatMap((p) => p.sessions),
+      ),
+    );
   }
-  return out.sort((a, b) => a.name.localeCompare(b.name));
+  return out.toSorted((a, b) => a.name.localeCompare(b.name));
 }
 
 /** Workspace name of a session inside a Claude Code worktree or conductor workspace, else null. */
@@ -705,8 +945,9 @@ function main(argv) {
     console.error(`Unknown option: ${unknown.join(", ")}\n\n${HELP}`);
     process.exit(2);
   }
-  const paths = (args.length ? args : [DEFAULT_ROOT])
-    .map((a) => resolve(a.replace(/^~(?=$|\/)/, homedir())));
+  const paths = (args.length ? args : [DEFAULT_ROOT]).map((a) =>
+    resolve(a.replace(/^~(?=$|\/)/, homedir())),
+  );
   const opts = { hideWorktrees: flags.has("--hide-worktrees") };
   const rates = loadCosts();
   if (flags.has("--tail")) return tail(paths, opts, rates);
@@ -726,4 +967,19 @@ function main(argv) {
   for (const p of projects) printProject(p, showCalls);
 }
 
-main(process.argv.slice(2));
+// Run only as the command (npm's bin link is a symlink), not when a test imports this file.
+const isMain = process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) main(process.argv.slice(2));
+
+export {
+  costOf,
+  groupWorkspaces,
+  loadPath,
+  makeProject,
+  parseCosts,
+  parseTranscriptUncached,
+  projectLabel,
+  tailLines,
+  turnExtra,
+  turnModel,
+};

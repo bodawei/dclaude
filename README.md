@@ -26,16 +26,16 @@ dclaude [path ...] [options]
 
 `path` defaults to `~/.claude/projects`. You can also pass one project folder inside it, or a single `.jsonl` transcript.
 
-| Option | What it does |
-|---|---|
-| *(none)* | Markdown report: a summary table by project, then each session's turns with one row per API call |
-| `--summary` | Only the per-project summary table |
-| `--no-calls` | One row per turn; hide the per-API-call rows |
-| `--csv` | CSV instead of Markdown: one row per API call (per turn with `--no-calls`, per project with `--summary`). Times are ISO 8601 UTC |
-| `--hide-worktrees` | Merge workspace folders into their project: Claude Code worktrees `<project>/.claude/worktrees/<name>` into `<project>`, and `.../conductor/workspaces/<project>/<workspace>` into `.../conductor/workspaces/<project>` |
-| `--tail` | Full-screen view of the most recent turns, refreshed every second. Consecutive turns in the same project are grouped under a line naming the project (with the time of its latest turn and their total `COST`). Each turn line shows the model (`claude-` dropped, `multiple` if the turn used several), its effort and flags when there is room, `INPUT-NEW` (new-input + cache_write), `INPUT-CACHED` (cache_read), `OUTPUT`, the start of the prompt, and `COST` when a price file exists (see [Costs in `--tail`](#costs-in---tail)). Press `q` or Ctrl-C to quit |
-| `--help`, `-h` | List the options and columns |
-| `--version`, `-v` | Print the version |
+| Option             | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| _(none)_           | Markdown report: a summary table by project, then each session's turns with one row per API call                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `--summary`        | Only the per-project summary table                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `--no-calls`       | One row per turn; hide the per-API-call rows                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `--csv`            | CSV instead of Markdown: one row per API call (per turn with `--no-calls`, per project with `--summary`). Times are ISO 8601 UTC                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `--hide-worktrees` | Merge workspace folders into their project: Claude Code worktrees `<project>/.claude/worktrees/<name>` into `<project>`, and `.../conductor/workspaces/<project>/<workspace>` into `.../conductor/workspaces/<project>`                                                                                                                                                                                                                                                                                                                                               |
+| `--tail`           | Full-screen view of the most recent turns, refreshed every second. Consecutive turns in the same project are grouped under a line naming the project (with the time of its latest turn and their total `COST`). Each turn line shows the model (`claude-` dropped, `multiple` if the turn used several), its effort and flags when there is room, `INPUT-NEW` (new-input + cache_write), `INPUT-CACHED` (cache_read), `OUTPUT`, the start of the prompt, and `COST` when a price file exists (see [Costs in `--tail`](#costs-in---tail)). Press `q` or Ctrl-C to quit |
+| `--help`, `-h`     | List the options and columns                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `--version`, `-v`  | Print the version                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 Examples:
 
@@ -54,11 +54,11 @@ If `~/.dclaude_costs` (or `~/dclaude_costs`) exists, `dclaude` reads it at start
 ```json
 {
   "claude-opus-5-5": {
-    "input":               { "dollarCost": 5,    "perTokens": 1_000_000 },
-    "output":              { "dollarCost": 25,   "perTokens": 1_000_000 },
-    "5mPromptCacheWrite":  { "dollarCost": 6.25, "perTokens": 1_000_000 },
-    "60mPromptCacheWrite": { "dollarCost": 10,   "perTokens": 1_000_000 },
-    "hitAndRefresh":       { "dollarCost": 0.5,  "perTokens": 1_000_000 }
+    "input": { "dollarCost": 5, "perTokens": 1_000_000 },
+    "output": { "dollarCost": 25, "perTokens": 1_000_000 },
+    "5mPromptCacheWrite": { "dollarCost": 6.25, "perTokens": 1_000_000 },
+    "60mPromptCacheWrite": { "dollarCost": 10, "perTokens": 1_000_000 },
+    "hitAndRefresh": { "dollarCost": 0.5, "perTokens": 1_000_000 }
   }
 }
 ```
@@ -70,18 +70,18 @@ Some models charge more when the prompt is long. Add `overPromptTokens` to such 
 ```json
 {
   "claude-haiku-5-5": {
-    "input":               { "dollarCost": 0.10,  "perTokens": 1_000_000 },
-    "output":              { "dollarCost": 0.50,  "perTokens": 1_000_000 },
-    "5mPromptCacheWrite":  { "dollarCost": 0.125, "perTokens": 1_000_000 },
-    "60mPromptCacheWrite": { "dollarCost": 0.20,  "perTokens": 1_000_000 },
-    "hitAndRefresh":       { "dollarCost": 0.01,  "perTokens": 1_000_000 },
+    "input": { "dollarCost": 0.1, "perTokens": 1_000_000 },
+    "output": { "dollarCost": 0.5, "perTokens": 1_000_000 },
+    "5mPromptCacheWrite": { "dollarCost": 0.125, "perTokens": 1_000_000 },
+    "60mPromptCacheWrite": { "dollarCost": 0.2, "perTokens": 1_000_000 },
+    "hitAndRefresh": { "dollarCost": 0.01, "perTokens": 1_000_000 },
     "overPromptTokens": {
       "100_000": {
-        "input":               { "dollarCost": 0.50,  "perTokens": 1_000_000 },
-        "output":              { "dollarCost": 2.50,  "perTokens": 1_000_000 },
-        "5mPromptCacheWrite":  { "dollarCost": 0.625, "perTokens": 1_000_000 },
-        "60mPromptCacheWrite": { "dollarCost": 1,     "perTokens": 1_000_000 },
-        "hitAndRefresh":       { "dollarCost": 0.05,  "perTokens": 1_000_000 }
+        "input": { "dollarCost": 0.5, "perTokens": 1_000_000 },
+        "output": { "dollarCost": 2.5, "perTokens": 1_000_000 },
+        "5mPromptCacheWrite": { "dollarCost": 0.625, "perTokens": 1_000_000 },
+        "60mPromptCacheWrite": { "dollarCost": 1, "perTokens": 1_000_000 },
+        "hitAndRefresh": { "dollarCost": 0.05, "perTokens": 1_000_000 }
       }
     }
   }
@@ -103,19 +103,19 @@ The figures above are only an example; fill in current prices yourself. `_` digi
 
 ## Columns
 
-| Column | Meaning |
-|---|---|
-| time | When the request was sent (local time in Markdown, UTC in CSV) |
-| secs | Call: request sent → last response block written. Turn: first request → last response, including time spent running tools |
-| thinking-level | Effort setting recorded for the call (`low` … `max`) |
-| flags | Non-default modes, blank when none: `batch` / `priority` (service tier), `fast` (fast mode), `us-inference` (inference region), `fallback` (request re-run on a fallback model) |
-| input | Total prompt size = new-input + cache_write + cache_read |
-| output | Output tokens, including thinking |
-| calls | API calls in the turn |
-| new-input | Uncached input tokens after the last cache marker (`usage.input_tokens`) |
-| cache_write | Input tokens written to the prompt cache |
-| cache_read | Input tokens served from the prompt cache |
-| thinking | Thinking tokens (part of output) |
+| Column         | Meaning                                                                                                                                                                         |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| time           | When the request was sent (local time in Markdown, UTC in CSV)                                                                                                                  |
+| secs           | Call: request sent → last response block written. Turn: first request → last response, including time spent running tools                                                       |
+| thinking-level | Effort setting recorded for the call (`low` … `max`)                                                                                                                            |
+| flags          | Non-default modes, blank when none: `batch` / `priority` (service tier), `fast` (fast mode), `us-inference` (inference region), `fallback` (request re-run on a fallback model) |
+| input          | Total prompt size = new-input + cache_write + cache_read                                                                                                                        |
+| output         | Output tokens, including thinking                                                                                                                                               |
+| calls          | API calls in the turn                                                                                                                                                           |
+| new-input      | Uncached input tokens after the last cache marker (`usage.input_tokens`)                                                                                                        |
+| cache_write    | Input tokens written to the prompt cache                                                                                                                                        |
+| cache_read     | Input tokens served from the prompt cache                                                                                                                                       |
+| thinking       | Thinking tokens (part of output)                                                                                                                                                |
 
 ## Reading the numbers
 
@@ -124,8 +124,40 @@ The figures above are only an example; fill in current prices yourself. `_` digi
 - **Each call's `cache_read` equals the previous call's `cache_read + cache_write`** while the cache stays warm.
 - **Claude Code writes one transcript record per content block,** each repeating the same usage. `dclaude` counts each API response once, by message id.
 
+## Development
 
-## Pricing references 
+The whole program is [`bin/dclaude.mjs`](bin/dclaude.mjs), with no runtime dependencies. The dev tools need pnpm 10:
+
+```sh
+pnpm install
+node bin/dclaude.mjs --summary
+```
+
+```text
+.
+├── bin/dclaude.mjs         The CLI: parsing, costs, discovery, Markdown/CSV reports, --tail
+├── test/                   node:test specs with small .jsonl fixtures
+├── docs/ROADMAP.md         Long-term projects and their current state
+├── .claude/skills/         Skills for agents: JavaScript conventions, product and tech docs
+├── .github/workflows/      The PR check: lint, format, tests
+├── AGENTS.md               Conventions for agents (CLAUDE.md points here)
+├── .oxlintrc.jsonc         Lint rules
+└── .oxfmtrc.json           Formatter settings
+```
+
+| Purpose          | Command             |
+| ---------------- | ------------------- |
+| All tests        | `pnpm test`         |
+| Lint             | `pnpm lint`         |
+| Apply lint fixes | `pnpm lint:fix`     |
+| Format           | `pnpm format`       |
+| Format check     | `pnpm format:check` |
+
+`oxfmt` owns formatting and import order, Markdown included; `oxlint` owns everything else, with the `correctness`, `suspicious` and `perf` categories and the `unicorn`, `oxc`, `import` and `node` plugins. `pnpm lint` and `pnpm format:check` only report; `pnpm lint:fix` and `pnpm format` rewrite files, so read the diff.
+
+Every pull request runs `.github/workflows/check.yml`, which fails on any lint warning, any formatting difference, or a failing test. It never changes files: fix problems locally and push again.
+
+## Pricing references
 
 Wheeeee!
 
