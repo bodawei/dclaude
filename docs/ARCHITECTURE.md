@@ -16,7 +16,7 @@ bin/dclaude.mjs              command line: options, --help, runs the layers, pri
 lib/
 ├── load/                    LAYER 1: LOADING
 │   ├── transcripts.mjs      .jsonl transcripts -> RawProject[] (sessions, subagents, turns, calls)
-│   └── prices.mjs           ~/.dclaude_costs -> rates (dollars per token)
+│   └── prices.mjs           ~/.dclaude_costs.json -> rates (dollars per token)
 ├── transform/               LAYER 2: TRANSFORMATION
 │   ├── projects.mjs         RawProject[] -> Project[]; Project[] -> TurnEntry[]
 │   └── costs.mjs            costOf(calls, rates), sumCosts(costs)
@@ -71,7 +71,7 @@ paths ──▶ loadPaths() ──▶ RawProject[] ──▶ buildProjects() ─
                                                                   │      └─▶ csvReport()
                                                                   │          csvSummary()
                                                                   └─▶ allTurns() ──▶ TurnEntry[] ──▶ tailFrame()
-~/.dclaude_costs ──▶ loadCosts() ──▶ rates ─────────────────────────┘ (costOf)
+~/.dclaude_costs.json ──▶ loadCosts() ──▶ rates ─────────────────────────┘ (costOf)
 ```
 
 For the Markdown and CSV reports this runs once. For `--tail`, `runTail()` calls back into the
