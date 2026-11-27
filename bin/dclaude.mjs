@@ -565,7 +565,7 @@ function tailLines(turns, rates, max) {
 
 function tail(paths, opts, rates) {
   const out = process.stdout;
-  const PROMPT_W = 20, GAP = " ", INDENT = "    ";
+  const PROMPT_W = 20, PATH_MIN = 20, GAP = " ", INDENT = "    ";
   const HEADS = ["PROJECT / MODEL", "INPUT-NEW", "INPUT-CACHED", "OUTPUT", "PROMPT", ...(rates ? ["COST"] : [])];
   const render = () => {
     // Stay off the last column: after a character there, the "\x1b[K" below erases it in
@@ -603,11 +603,13 @@ function tail(paths, opts, rates) {
     // A project line: the path across the row, and the run's total under COST.
     const projectLine = (l) => {
       const costCell = rates ? GAP + money(l.cost).padStart(w[5]) : "";
-      // Clip the path, not the time after it.
-      const latest = `  (latest ${isoStamp(l.latest)})`;
+      // As room runs out, the time after the path shrinks first: "latest" goes, then the
+      // date, then the hours, then all of it. The path keeps up to PATH_MIN characters.
       const room = cols - costCell.length;
-      const label = l.project.length + latest.length <= room
-        ? l.project + latest : fit(l.project, Math.max(1, room - latest.length)) + latest;
+      const stamp = isoStamp(l.latest), clock = stamp.slice(11);
+      const latest = [`  (latest ${stamp})`, `  (${stamp})`, `  (${clock})`, `  (${clock.slice(3)})`, ""]
+        .find((x) => Math.min(l.project.length, PATH_MIN) + x.length <= room) ?? "";
+      const label = fit(l.project, Math.max(1, Math.min(l.project.length, room - latest.length))) + latest;
       const text = rates ? fit(label, room) + costCell : fit(label, cols).trimEnd();
       return "\x1b[1m" + text.slice(0, cols) + "\x1b[0m";
     };
