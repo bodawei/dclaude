@@ -126,7 +126,7 @@ The figures above are only an example; fill in current prices yourself. `_` digi
 
 ## Development
 
-dclaude has no runtime dependencies. The code is three layers, each in its own folder under `lib/`, and [`bin/dclaude.mjs`](bin/dclaude.mjs) runs them in order: load the files, transform the data, present it as Markdown, CSV or `--tail`. `AGENTS.md` has the rules that keep them apart. The dev tools need pnpm 10:
+dclaude has no runtime dependencies. The code is three layers, each in its own folder under `lib/`, and [`bin/dclaude.mjs`](bin/dclaude.mjs) runs them in order: load the files, transform the data, present it as Markdown, CSV or `--tail`. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) describes the layers and the rules that keep them apart. The dev tools need pnpm 10:
 
 ```sh
 pnpm install
@@ -148,12 +148,13 @@ node bin/dclaude.mjs --summary
 │   ├── csv.mjs                       --csv
 │   └── tail.mjs                      --tail: tailFrame() lays out a screen, runTail() drives it
 ├── test/                             one file per layer, plus cli.test.mjs and helpers.mjs
-├── docs/ROADMAP.md         Long-term projects and their current state
-├── .claude/skills/         Skills for agents: JavaScript conventions, product and tech docs
-├── .github/workflows/      The PR check: lint, format, tests
-├── AGENTS.md               Conventions for agents (CLAUDE.md points here)
-├── .oxlintrc.jsonc         Lint rules
-└── .oxfmtrc.json           Formatter settings
+├── docs/ARCHITECTURE.md              The three layers, their rules, where a change goes
+├── docs/ROADMAP.md                   Long-term projects and their current state
+├── .claude/skills/                   Skills for agents: JavaScript conventions, product and tech docs
+├── .github/workflows/                The PR check: lint, format, tests
+├── AGENTS.md                         Conventions for agents (CLAUDE.md points here)
+├── .oxlintrc.jsonc                   Lint rules
+└── .oxfmtrc.json                     Formatter settings
 ```
 
 | Purpose          | Command             |
