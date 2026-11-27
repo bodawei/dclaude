@@ -15,13 +15,13 @@ verification steps pass.
 
 ## Overview
 
-| ID  | Status | Project                                         |
-| --- | ------ | ----------------------------------------------- |
-| P0  | done   | Usage report, CSV, `--tail` and costs           |
-| P1  | active | Tests, lint, format and CI                      |
-| P2  | next   | Separate `--tail` drawing from terminal I/O     |
-| P3  | idea   | Small cleanups: shared cost sum, duplicates     |
-| P4  | onhold | Split `bin/dclaude.mjs` into reading and output |
+| ID  | Status | Project                                     |
+| --- | ------ | ------------------------------------------- |
+| P0  | done   | Usage report, CSV, `--tail` and costs       |
+| P1  | active | Tests, lint, format and CI                  |
+| P2  | done   | Separate `--tail` drawing from terminal I/O |
+| P3  | done   | Small cleanups: shared cost sum, duplicates |
+| P4  | done   | Three layers: load, transform, present      |
 
 ## P0: Usage report, CSV, `--tail` and costs
 
@@ -58,7 +58,7 @@ checkout, and `.github/workflows/check.yml` runs them on every PR without changi
 
 ### Current state
 
-**Active 2026-11-27.** The suite in `test/dclaude.test.mjs` covers transcript parsing (message-id
+**Active 2026-11-27.** The suite in `test/` (one file per layer since P4) covers transcript parsing (message-id
 de-duplication, turn boundaries, flags), the price file, `costOf` (tiers, multipliers, unknown
 models), `tailLines`, `projectLabel`'s shrinking stages, `groupWorkspaces`, project loading with
 subagents, and two CLI runs (CSV output and an unknown option). `oxlint` and `oxfmt` are set up
@@ -77,67 +77,60 @@ The three commands above pass locally, and the PR's `Check` job is green.
 
 ### Goal
 
-`tail()` mixes loading data, working out column widths, building lines and handling the
-terminal. Move the middle part into a pure function, such as
-`tailScreen(turns, rates, { rows, cols, now })`, that returns the lines, and leave `tail()` with
-the refresh loop, the screen writes and the `q` key.
+`tail()` mixed loading data, working out column widths, building lines and handling the
+terminal. Move the layout into a pure function that returns the lines, and leave the terminal
+handling on its own.
 
 ### Done when
 
 The header, the column layout and the narrow-screen behaviour are covered by tests that call the
-pure function at several widths, with no pseudo-terminal.
+pure function, with no pseudo-terminal.
 
 ### Current state
 
-Not started. `tailLines` and `projectLabel` are already pure and tested; the rest of the layout
-is still inside `tail()`.
+**Done 2026-11-27, as part of P4.** `tailFrame(entries, rates, { rows, cols, now })` in
+`lib/present/tail.mjs` returns the lines; `runTail()` keeps the alternate screen, the refresh
+and the `q` key. Tests cover the header (time, turn count, total cost, no cost without prices)
+and that every line fits a 40-column, 4-row screen. `runTail()` itself has no automated test.
 
-### Next actions
-
-- [ ] Extract the function and move the existing behaviour across unchanged.
-- [ ] Add width tests for the header, the turn lines and the project lines.
-
-### Verification
-
-`pnpm test` passes, and `--tail` looks the same as before at 120, 80 and 40 columns.
+Verification: the first `--tail` frame at 120, 70 and 40 columns is byte-for-byte the same as
+before, against a snapshot of real transcripts.
 
 ## P3: Small cleanups
 
 ### Goal
 
-Remove duplicated logic found in the review:
-
-- "Total cost, or unknown if any part is unknown" appears in `tailLines` and in the `--tail`
-  header; give it one helper.
-- `secs` and `secsNum` differ only in what they show for a missing time.
-- Workspace grouping (`matchWorkspace`, `groupWorkspaces`, `loadAll`) sits in the main section
-  but belongs with discovery.
-
-### Done when
-
-Each item has one implementation, behaviour is unchanged, and the tests still pass.
+Remove duplicated logic found in the review: the "total cost, or unknown if any part is unknown"
+rule written twice, `secs` and `secsNum` differing only in what they show for a missing time, and
+workspace grouping sitting in the main section instead of with the data it changes.
 
 ### Current state
 
-Not started.
+**Done 2026-11-27, as part of P4.** `sumCosts` in `lib/transform/costs.mjs`; `secs(a, b,
+missing)` in `lib/present/common.mjs`; workspace grouping in `lib/transform/projects.mjs`.
 
-### Verification
-
-`pnpm test`, lint and format check pass; the Markdown and CSV reports are unchanged for the same
-input.
-
-## P4: Split `bin/dclaude.mjs` into reading and output
+## P4: Three layers: load, transform, present
 
 ### Goal
 
-Put reading (parsing, costs, discovery) and output (Markdown, CSV, `--tail`) in separate
-modules, with `bin/dclaude.mjs` as a thin entry point.
+Separate the program into three layers, each in its own folder: loading files, transforming the
+data independently of any output, and presenting it, with one file per output (Markdown, CSV,
+`--tail`) and shared presentation helpers. `bin/dclaude.mjs` is only the command line.
+
+### Done when
+
+Each layer's files say which layer they are, imports point only down, loading and transformation
+do no output, and every report is unchanged for the same input.
 
 ### Current state
 
-**On hold.** One file is still easy to read and install. Revisit when the file grows well past
-its current size or when P2 makes the `--tail` code large enough to want its own module.
+**Done 2026-11-27.** The layout and the rules that keep the layers apart are in `AGENTS.md`
+under Architecture. Tests are split the same way (`test/load`, `transform`, `present`, `cli`).
 
-### Dependencies and open questions
+One deliberate change: a project folder or `.jsonl` file with no API calls used to give an
+empty report; it now gives "No transcripts with usage found." like an empty projects root.
 
-Depends on P2. `files` in `package.json` would need to include the new module directory.
+Verification: `pnpm test` (44 tests), lint and format check pass. Every Markdown and CSV mode
+(`--summary`, `--no-calls`, `--hide-worktrees`, and their combinations), `--help`, and the first
+`--tail` frame at three widths are byte-for-byte the same as before the split, against a
+snapshot of real transcripts.

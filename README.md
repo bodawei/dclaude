@@ -126,7 +126,7 @@ The figures above are only an example; fill in current prices yourself. `_` digi
 
 ## Development
 
-The whole program is [`bin/dclaude.mjs`](bin/dclaude.mjs), with no runtime dependencies. The dev tools need pnpm 10:
+dclaude has no runtime dependencies. The code is three layers, each in its own folder under `lib/`, and [`bin/dclaude.mjs`](bin/dclaude.mjs) runs them in order: load the files, transform the data, present it as Markdown, CSV or `--tail`. `AGENTS.md` has the rules that keep them apart. The dev tools need pnpm 10:
 
 ```sh
 pnpm install
@@ -135,8 +135,19 @@ node bin/dclaude.mjs --summary
 
 ```text
 .
-├── bin/dclaude.mjs         The CLI: parsing, costs, discovery, Markdown/CSV reports, --tail
-├── test/                   node:test specs with small .jsonl fixtures
+├── bin/dclaude.mjs                   Command line: options, help text, runs the three layers
+├── lib/load/                         Layer 1, loading: read files, decode them, nothing else
+│   ├── transcripts.mjs               .jsonl transcripts -> projects, sessions, turns, calls
+│   └── prices.mjs                    ~/.dclaude_costs -> per-token rates
+├── lib/transform/                    Layer 2, transformation: independent of any output
+│   ├── projects.mjs                  totals, ids, empty data dropped, workspaces merged, turns
+│   └── costs.mjs                     pricing calls; null when a cost can't be known
+├── lib/present/                      Layer 3, presentation: one file per output
+│   ├── common.mjs                    shared helpers: times, secs, numbers, money, fit
+│   ├── markdown.mjs                  the Markdown report (default)
+│   ├── csv.mjs                       --csv
+│   └── tail.mjs                      --tail: tailFrame() lays out a screen, runTail() drives it
+├── test/                             one file per layer, plus cli.test.mjs and helpers.mjs
 ├── docs/ROADMAP.md         Long-term projects and their current state
 ├── .claude/skills/         Skills for agents: JavaScript conventions, product and tech docs
 ├── .github/workflows/      The PR check: lint, format, tests

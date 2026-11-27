@@ -121,13 +121,13 @@ The token counts are the API's; Claude Code does not compute them.
 
 ### 5. Transcript → dclaude: read and de-duplicate
 
-`parseTranscriptUncached` reads every line, skipping a line cut off mid-write. For an `assistant`
+`parseTranscriptUncached` (in `lib/load/transcripts.mjs`, the loading layer) reads every line, skipping a line cut off mid-write. For an `assistant`
 record with usage, it looks up `message.id`: the first record creates a call in the current turn,
 and each later one replaces the call's usage and end time. A `user` record that is a typed prompt
 starts a new turn; one that only carries tool results does not.
 
 The call's `input` is computed here, by dclaude: `input_tokens + cache_creation_input_tokens +
-cache_read_input_tokens`. Its cost is computed later by `costOf`, from the price file, and is
+cache_read_input_tokens`. Its cost is computed later, in the transformation layer, by `costOf` (`lib/transform/costs.mjs`) from the price file, and is
 `null` (shown as `?`) when the model or one of the call's flags has no price.
 
 ## Provenance worksheet
