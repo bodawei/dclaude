@@ -33,7 +33,7 @@ dclaude [path ...] [options]
 | `--no-calls` | One row per turn; hide the per-API-call rows |
 | `--csv` | CSV instead of Markdown: one row per API call (per turn with `--no-calls`, per project with `--summary`). Times are ISO 8601 UTC |
 | `--hide-worktrees` | Merge workspace folders into their project: Claude Code worktrees `<project>/.claude/worktrees/<name>` into `<project>`, and `.../conductor/workspaces/<project>/<workspace>` into `.../conductor/workspaces/<project>` |
-| `--tail` | Full-screen view of the most recent turns, refreshed every second. Consecutive turns in the same project are grouped under a line naming the project (with their total `COST`). Each turn line shows the model (`claude-` dropped, `multiple` if the turn used several), its effort and flags when there is room, `INPUT-NEW` (new-input + cache_write), `INPUT-CACHED` (cache_read), `OUTPUT`, the start of the prompt, and `COST` when a price file exists (see [Costs in `--tail`](#costs-in---tail)). Press `q` or Ctrl-C to quit |
+| `--tail` | Full-screen view of the most recent turns, refreshed every second. Consecutive turns in the same project are grouped under a line naming the project (with the time of its latest turn and their total `COST`). Each turn line shows the model (`claude-` dropped, `multiple` if the turn used several), its effort and flags when there is room, `INPUT-NEW` (new-input + cache_write), `INPUT-CACHED` (cache_read), `OUTPUT`, the start of the prompt, and `COST` when a price file exists (see [Costs in `--tail`](#costs-in---tail)). Press `q` or Ctrl-C to quit |
 | `--help`, `-h` | List the options and columns |
 | `--version`, `-v` | Print the version |
 

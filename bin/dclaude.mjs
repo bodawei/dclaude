@@ -23,10 +23,11 @@ Options:
                 .../conductor/workspaces/<project>
   --tail        full-screen view of the most recent turns (newest first), refreshed every
                 second. Consecutive turns in the same project sit under a line naming
-                the project (with their total COST); each turn line shows the model
-                ("claude-" dropped, "multiple" if several), effort and flags when there
-                is room, INPUT-NEW (new-input + cache_write), INPUT-CACHED (cache_read),
-                OUTPUT and the start of the prompt (20+ chars).
+                the project (with its latest turn's time and their total COST); each
+                turn line shows the model ("claude-" dropped, "multiple" if several),
+                effort and flags when there is room, INPUT-NEW (new-input +
+                cache_write), INPUT-CACHED (cache_read), OUTPUT and the start of the
+                prompt (20+ chars).
                 Subagent turns are marked "↳". Press q or Ctrl-C to quit.
                 With a price table in ~/.dclaude_costs (or ~/dclaude_costs), a COST column
                 shows each turn's cost in dollars: new-input, output, cache writes (priced
@@ -364,6 +365,8 @@ function fmtTime(iso, withTime = true) {
   const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   return withTime ? `${date} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` : date;
 }
+/** Local time as 2026-11-27T02:26:59. */
+const isoStamp = (iso) => fmtTime(iso).replace(" ", "T");
 const secs = (a, b) => (a && b ? ((new Date(b) - new Date(a)) / 1000).toFixed(1) : "—");
 const fmt = (n) => n.toLocaleString("en-US");
 const clean = (s, n = 100) => {
@@ -550,7 +553,7 @@ function tailLines(turns, rates, max) {
     const run = turns.slice(i, j), costs = run.map((t) => t.cost);
     const cost = rates ? (costs.includes(null) ? null : costs.reduce((a, b) => a + b, 0)) : null;
     if (lines.length + 1 >= max) break;
-    lines.push({ project: run[0].project, cost });
+    lines.push({ project: run[0].project, latest: run[0].ts, cost });
     for (const t of run) {
       if (lines.length >= max) break;
       lines.push({ turn: t });
@@ -562,7 +565,7 @@ function tailLines(turns, rates, max) {
 
 function tail(paths, opts, rates) {
   const out = process.stdout;
-  const PROMPT_W = 20, GAP = " ", INDENT = "    ";
+  const PROMPT_W = 20, PATH_MIN = 20, GAP = " ", INDENT = "    ";
   const HEADS = ["PROJECT / MODEL", "INPUT-NEW", "INPUT-CACHED", "OUTPUT", "PROMPT", ...(rates ? ["COST"] : [])];
   const render = () => {
     // Stay off the last column: after a character there, the "\x1b[K" below erases it in
@@ -600,13 +603,23 @@ function tail(paths, opts, rates) {
     // A project line: the path across the row, and the run's total under COST.
     const projectLine = (l) => {
       const costCell = rates ? GAP + money(l.cost).padStart(w[5]) : "";
-      const text = rates ? fit(l.project, cols - costCell.length) + costCell : fit(l.project, cols).trimEnd();
+      // As room runs out, the time after the path shrinks first: "latest" goes, then the
+      // date, then the hours, then all of it. The path keeps up to PATH_MIN characters.
+      const room = cols - costCell.length;
+      const stamp = isoStamp(l.latest), clock = stamp.slice(11);
+      const latest = [`  (latest ${stamp})`, `  (${stamp})`, `  (${clock})`, `  (${clock.slice(3)})`, ""]
+        .find((x) => Math.min(l.project.length, PATH_MIN) + x.length <= room) ?? "";
+      const label = fit(l.project, Math.max(1, Math.min(l.project.length, room - latest.length))) + latest;
+      const text = rates ? fit(label, room) + costCell : fit(label, cols).trimEnd();
       return "\x1b[1m" + text.slice(0, cols) + "\x1b[0m";
     };
     const now = new Date();
+    const stamp = isoStamp(now.toISOString());
+    const allCosts = turns.map((t) => t.cost);
+    const total = rates ? (allCosts.includes(null) ? null : allCosts.reduce((a, b) => a + b, 0)) : null;
     const lines = [
-      fit(`Claude Code usage · ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}` +
-        ` · ${turns.length} turns · q to quit`, cols),
+      fit(`Claude Code usage · ${stamp} · ${turns.length} turns` +
+        (rates ? ` ${money(total)} cost` : "") + " · q to quit", cols),
       "\x1b[7m" + fit(line(HEADS), cols) + "\x1b[0m",
       ...body.map((l) => (l.turn ? turnLine(l.turn) : projectLine(l))),
     ];
