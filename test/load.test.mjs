@@ -58,7 +58,7 @@ describe("parseTranscriptUncached", () => {
     assert.equal(t.totals, undefined);
   });
 
-  test("records each turn's newest record time, tool results included", () => {
+  test("records the time of each turn's latest work, tool results included, meta records not", () => {
     const busy = parseTranscriptUncached(
       transcript(join(tempDir(), "busy.jsonl"), [
         user("run the tests", "2026-11-27T01:00:00.000Z"),
@@ -66,6 +66,9 @@ describe("parseTranscriptUncached", () => {
         // A tool result and an untimed record after the last response.
         user([{ type: "tool_result", content: "ok" }], "2026-11-27T01:00:30.000Z"),
         { type: "last-prompt" },
+        // A local slash command run minutes later does not make the turn active again.
+        user("<command-name>/cost</command-name>", "2026-11-27T01:05:00.000Z", { isMeta: true }),
+        { type: "system", subtype: "local_command", timestamp: "2026-11-27T01:05:00.000Z" },
       ]),
     );
 
