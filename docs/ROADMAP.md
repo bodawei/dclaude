@@ -18,10 +18,12 @@ verification steps pass.
 | ID  | Status | Project                                     |
 | --- | ------ | ------------------------------------------- |
 | P0  | done   | Usage report, CSV, `--tail` and costs       |
-| P1  | active | Tests, lint, format and CI                  |
+| P1  | done   | Tests, lint, format and CI                  |
 | P2  | done   | Separate `--tail` drawing from terminal I/O |
 | P3  | done   | Small cleanups: shared cost sum, duplicates |
 | P4  | done   | Three layers: load, transform, present      |
+| P5  | idea   | Check the data shapes between layers        |
+| P6  | idea   | Keep `--tail` cheap on a large history      |
 
 ## P0: Usage report, CSV, `--tail` and costs
 
@@ -58,20 +60,12 @@ checkout, and `.github/workflows/check.yml` runs them on every PR without changi
 
 ### Current state
 
-**Active 2026-11-27.** The suite in `test/` (one file per layer since P4) covers transcript parsing (message-id
-de-duplication, turn boundaries, flags), the price file, `costOf` (tiers, multipliers, unknown
-models), `tailLines`, `projectLabel`'s shrinking stages, `groupWorkspaces`, project loading with
-subagents, and two CLI runs (CSV output and an unknown option). `oxlint` and `oxfmt` are set up
-and the code base passes both. The workflow is written but has not run on GitHub yet.
-
-### Next actions
-
-- [ ] Merge the PR and confirm the check runs and passes on GitHub.
-- [ ] Make the check required for `main` in the repository settings (a human step).
-
-### Verification
-
-The three commands above pass locally, and the PR's `Check` job is green.
+**Done 2026-11-27.** The suite in `test/` (one file per layer since P4) covers transcript
+parsing (message-id de-duplication, turn boundaries, flags), the price file, `costOf` (tiers,
+multipliers, unknown models), the `--tail` layout, workspace merging, project loading with
+subagents, and the command line. `oxlint` and `oxfmt` are set up and the code base passes both.
+`.github/workflows/check.yml` has run green on every PR since bodawei/dclaude#6, and its `check`
+job is required for `main`.
 
 ## P2: Separate `--tail` drawing from terminal I/O
 
@@ -134,3 +128,76 @@ Verification: `pnpm test` (44 tests), lint and format check pass. Every Markdown
 (`--summary`, `--no-calls`, `--hide-worktrees`, and their combinations), `--help`, and the first
 `--tail` frame at three widths are byte-for-byte the same as before the split, against a
 snapshot of real transcripts.
+
+## P5: Check the data shapes between layers
+
+### Goal
+
+Catch a field renamed or dropped in one layer while another still reads it. Today the shapes
+that cross layers (`RawProject`, `Project`, `TurnEntry`, `Call`, ...) are only described in the
+header comments of `lib/load/transcripts.mjs` and `lib/transform/projects.mjs`, so nothing
+checks them.
+
+### Done when
+
+Those shapes are JSDoc `@typedef`s, the functions that pass them between layers are annotated,
+and CI runs `tsc --noEmit --checkJs` over `bin/` and `lib/` with no errors. The code stays plain
+JavaScript that Node runs directly; there is no build step.
+
+### Current state
+
+Not started.
+
+### Dependencies and open questions
+
+- Adds `typescript` as a dev dependency, the first beyond the lint and format tools. It never
+  ships (`files` in `package.json`).
+- How strict to be: `strict` from the start, or `checkJs` first and tighten later. Transcript
+  records are untrusted JSON, so their fields need optional types, not assertions.
+
+### Next actions
+
+- [ ] Turn the shape comments into `@typedef`s in the same two files.
+- [ ] Annotate the cross-layer functions (`loadPaths`, `buildProjects`, `allTurns`, the
+      presenters' entry points) and fix what `tsc` reports.
+- [ ] Add the check to `.github/workflows/check.yml`.
+
+### Verification
+
+`pnpm exec tsc --noEmit` passes locally and in CI, and renaming a field on `Call` in the loading
+layer makes it fail.
+
+## P6: Keep `--tail` cheap on a large history
+
+### Goal
+
+`--tail` refreshes every second, and every refresh checks the size and modification time of
+every transcript under `~/.claude/projects`, then rebuilds every total in the transformation
+layer, even when nothing changed. The parse cache keeps unchanged files from being read again,
+but the checking and rebuilding grow with the whole history, not with what is new.
+
+### Done when
+
+A refresh's cost is measured on a large history, and if it is noticeable, a refresh where no
+transcript changed does no transformation work, and one where a transcript changed rebuilds only
+what depends on it. Output is unchanged.
+
+### Current state
+
+Not measured. The history this was written on (227 MB) shows no visible lag.
+
+### Dependencies and open questions
+
+- Whether it is worth doing at all depends on the measurement; record it here either way.
+- Caching in the transformation layer must keep its rule that loaded data is never mutated
+  (`docs/ARCHITECTURE.md`).
+
+### Next actions
+
+- [ ] Time one refresh (`tailFrame` plus everything it calls) on a large copied history.
+- [ ] If it matters: skip the rebuild when no transcript's size or modification time changed.
+
+### Verification
+
+`pnpm test` passes, the first `--tail` frame is byte-for-byte the same as before on a snapshot of
+real transcripts, and the timing is recorded in this entry.
