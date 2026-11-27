@@ -65,21 +65,22 @@ Use these words distinctly:
 | -------------- | ------------------------------------------------------------------------------ | ------------------------------------------ |
 | **Capability** | A product outcome the tool provides. It is realized by one or more modules.    | "price a turn", "watch usage live"         |
 | **Module**     | The logical design unit. It owns a capability (or part of one) and a contract. | transcript parsing, pricing, `--tail` view |
-| **File**       | The physical unit that holds one or more modules.                              | `bin/dclaude.mjs`                          |
+| **File**       | The physical unit that holds one or more modules.                              | `lib/present/csv.mjs`                      |
 | **Layer**      | Internal organization inside a module. Not the main axis.                      | pure layout vs. terminal I/O in `--tail`   |
 
-dclaude is one file today, so its modules are the `// ---------- name ----------` sections of
-`bin/dclaude.mjs`: parsing, costs, discovery, formatting, CSV, tail mode and main. A module does
-not need its own file to be real; it needs a clear contract and tests at that contract. Splitting
-into files is roadmap item P4 and is on hold.
+dclaude's modules are the files under `lib/`, grouped into three layers: loading (`lib/load/`),
+transformation (`lib/transform/`) and presentation (`lib/present/`). The layers are the
+program's main axis because each answers a different question (what is on disk, what does it
+add up to, how is it shown); modules inside a layer are split by capability (transcripts vs.
+prices, Markdown vs. CSV vs. `--tail`). `AGENTS.md` has the rules that keep the layers apart.
 
 ### Modules, layers, and capabilities
 
-- Decompose by **capability**, not by technical layer. "Pricing" owns reading the price file and
-  `costOf`; it is not split into "file reading" and "math" modules used by everything.
-- Layers are useful **inside** a module. The `--tail` view has a pure layout layer
-  (`tailLines`, `projectLabel`) and a terminal layer (`tail()`). Its contract is what the user
-  sees, not each internal function.
+- Inside a layer, decompose by **capability**: a new output is a new presenter file, not new
+  branches in an existing one.
+- A module can have its own internal split too. The `--tail` presenter has a pure layout
+  (`tailFrame`) and a terminal driver (`runTail`). Its contract is what the user sees, not each
+  internal function.
 - Start coarse. Split when a real seam appears: different inputs, different change cadence,
   different failure modes, or a boundary worth testing on its own.
 - Keep pure logic and I/O apart, so a module can be tested without a terminal or a real
@@ -137,8 +138,8 @@ Practical rules:
 
 - Turning the one-pager into an option list or requirements document.
 - Using the PRD as a roadmap, or the roadmap as the product spec.
-- Splitting modules by technical layer and calling the result decoupled.
-- Splitting the single file into many files before the module contracts are clear.
+- Putting a derived value two outputs need into one presenter, so the other recomputes it.
+- Letting loading or transformation print, exit, or know about an output format.
 - Letting the agent invent the product vision or silently expand scope.
 - Letting implementation cross module boundaries without an explicit contract change.
 - Duplicating the same content across documents instead of linking to the source of truth.

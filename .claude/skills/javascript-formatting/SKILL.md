@@ -1,6 +1,6 @@
 ---
 name: javascript-formatting
-description: Use when writing or reviewing JavaScript in this repo (`bin/dclaude.mjs`, `test/**/*.test.mjs`), especially when placing exports or deciding where blank lines go around variable declarations, return statements, and control-flow blocks. Covers two conventions that oxfmt and oxlint do not enforce: (1) one `export { ... }` statement at the end of the file instead of `export` on each declaration, and (2) blank-line placement around declaration blocks, `return`, and block-bodied statements like `if`, `while`, `do...while`, `for`, `switch`, and `try`.
+description: Use when writing or reviewing JavaScript in this repo (`bin/`, `lib/`, `test/`), especially when placing exports or deciding where blank lines go around variable declarations, return statements, and control-flow blocks. Covers two conventions that oxfmt and oxlint do not enforce: (1) one `export { ... }` statement at the end of the file instead of `export` on each declaration, and (2) blank-line placement around declaration blocks, `return`, and block-bodied statements like `if`, `while`, `do...while`, `for`, `switch`, and `try`.
 ---
 
 # JavaScript formatting
@@ -35,11 +35,12 @@ scattered `export` keywords.
 
 Notes:
 
-- `bin/dclaude.mjs` exports only what the tests import. It is a command, not a library: add a name
-  to its `export { … }` when a test needs it, not in case someone might.
+- A file under `lib/` exports what other files or tests import, and nothing else. Add a name to
+  its `export { … }` when something needs it, not in case someone might.
+- `bin/dclaude.mjs` exports nothing; it is the command.
 - A re-export (`export { x } from "./other.mjs"`) belongs at the end too, grouped with the file's
   other exports.
-- Test files export nothing.
+- Test files (`*.test.mjs`) export nothing; `test/helpers.mjs` exports the shared fixtures.
 
 ## Blank lines around declarations, returns, and blocks
 
@@ -99,7 +100,7 @@ declaration right after some `const`s still only needs the one blank line the de
 rule already calls for.
 
 Single-line statements such as `if (!path) return null;` are not block-bodied; rule 3 does not
-apply to them. They are common in `bin/dclaude.mjs` and fine to keep.
+apply to them. They are common in `lib/` and fine to keep.
 
 In tests, an `assert` group counts as an ordinary statement: put the blank line after the
-declarations that set it up, as in `test/dclaude.test.mjs`.
+declarations that set it up, as in `test/present.test.mjs`.

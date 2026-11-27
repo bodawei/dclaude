@@ -4,8 +4,8 @@ A module is an implementation-level unit: larger than a function, smaller than t
 owns a capability end-to-end and exposes a contract to the rest of the program. The human designs
 the boundary; the agent owns the implementation inside it.
 
-In dclaude a module is usually a section of `bin/dclaude.mjs`. It does not need its own file to
-have a contract.
+In dclaude a module is usually one file under `lib/`, in one of three layers: loading,
+transformation or presentation. Say which layer in the brief.
 
 Write the brief before the code. If the brief cannot be written clearly, the module is not ready
 to implement.
@@ -27,7 +27,7 @@ a capability may be delivered by more than one module.
 
 ## Where it lives
 
-The section of `bin/dclaude.mjs`, or the file, that holds it.
+The file under `lib/` that holds it, and its layer.
 
 ## Owns
 
