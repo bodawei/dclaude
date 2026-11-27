@@ -1,0 +1,596 @@
+{
+  "claude-fable-5-2": {
+    "input": {
+      "dollarCost": 8,
+      "perTokens": 1000000
+    },
+    "5mPromptCacheWrite": {
+      "dollarCost": 10,
+      "perTokens": 1000000
+    },
+    "60mPromptCacheWrite": {
+      "dollarCost": 16,
+      "perTokens": 1000000
+    },
+    "hitAndRefresh": {
+      "dollarCost": 0.2,
+      "perTokens": 1000000
+    },
+    "output": {
+      "dollarCost": 40,
+      "perTokens": 1000000
+    },
+    "multipliers": {
+      "batch": 0.5,
+      "fast": 2,
+      "us-inference": 1.1
+    }
+  },
+  "claude-mythos-5-2": {
+    "input": {
+      "dollarCost": 8,
+      "perTokens": 1000000
+    },
+    "5mPromptCacheWrite": {
+      "dollarCost": 10,
+      "perTokens": 1000000
+    },
+    "60mPromptCacheWrite": {
+      "dollarCost": 16,
+      "perTokens": 1000000
+    },
+    "hitAndRefresh": {
+      "dollarCost": 0.2,
+      "perTokens": 1000000
+    },
+    "output": {
+      "dollarCost": 40,
+      "perTokens": 1000000
+    },
+    "multipliers": {
+      "batch": 0.5,
+      "fast": 2,
+      "us-inference": 1.1
+    }
+  },
+  "claude-fable-5-1": {
+    "input": {
+      "dollarCost": 10,
+      "perTokens": 1000000
+    },
+    "5mPromptCacheWrite": {
+      "dollarCost": 12.5,
+      "perTokens": 1000000
+    },
+    "60mPromptCacheWrite": {
+      "dollarCost": 20,
+      "perTokens": 1000000
+    },
+    "hitAndRefresh": {
+      "dollarCost": 0.25,
+      "perTokens": 1000000
+    },
+    "output": {
+      "dollarCost": 50,
+      "perTokens": 1000000
+    },
+    "multipliers": {
+      "batch": 0.5,
+      "us-inference": 1.1
+    }
+  },
+  "claude-mythos-5-1": {
+    "input": {
+      "dollarCost": 10,
+      "perTokens": 1000000
+    },
+    "5mPromptCacheWrite": {
+      "dollarCost": 12.5,
+      "perTokens": 1000000
+    },
+    "60mPromptCacheWrite": {
+      "dollarCost": 20,
+      "perTokens": 1000000
+    },
+    "hitAndRefresh": {
+      "dollarCost": 0.25,
+      "perTokens": 1000000
+    },
+    "output": {
+      "dollarCost": 50,
+      "perTokens": 1000000
+    },
+    "multipliers": {
+      "batch": 0.5,
+      "us-inference": 1.1
+    }
+  },
+  "claude-fable-5": {
+    "input": {
+      "dollarCost": 10,
+      "perTokens": 1000000
+    },
+    "5mPromptCacheWrite": {
+      "dollarCost": 12.5,
+      "perTokens": 1000000
+    },
+    "60mPromptCacheWrite": {
+      "dollarCost": 20,
+      "perTokens": 1000000
+    },
+    "hitAndRefresh": {
+      "dollarCost": 1,
+      "perTokens": 1000000
+    },
+    "output": {
+      "dollarCost": 50,
+      "perTokens": 1000000
+    },
+    "multipliers": {
+      "batch": 0.5,
+      "us-inference": 1.1
+    }
+  },
+  "claude-mythos-5": {
+    "input": {
+      "dollarCost": 10,
+      "perTokens": 1000000
+    },
+    "5mPromptCacheWrite": {
+      "dollarCost": 12.5,
+      "perTokens": 1000000
+    },
+    "60mPromptCacheWrite": {
+      "dollarCost": 20,
+      "perTokens": 1000000
+    },
+    "hitAndRefresh": {
+      "dollarCost": 1,
+      "perTokens": 1000000
+    },
+    "output": {
+      "dollarCost": 50,
+      "perTokens": 1000000
+    },
+    "multipliers": {
+      "batch": 0.5,
+      "us-inference": 1.1
+    }
+  },
+  "claude-opus-5-5": {
+    "input": {
+      "dollarCost": 4,
+      "perTokens": 1000000
+    },
+    "5mPromptCacheWrite": {
+      "dollarCost": 5,
+      "perTokens": 1000000
+    },
+    "60mPromptCacheWrite": {
+      "dollarCost": 8,
+      "perTokens": 1000000
+    },
+    "hitAndRefresh": {
+      "dollarCost": 0.2,
+      "perTokens": 1000000
+    },
+    "output": {
+      "dollarCost": 20,
+      "perTokens": 1000000
+    },
+    "multipliers": {
+      "batch": 0.5,
+      "fast": 2,
+      "us-inference": 1.1
+    }
+  },
+  "claude-opus-5": {
+    "input": {
+      "dollarCost": 5,
+      "perTokens": 1000000
+    },
+    "5mPromptCacheWrite": {
+      "dollarCost": 6.25,
+      "perTokens": 1000000
+    },
+    "60mPromptCacheWrite": {
+      "dollarCost": 10,
+      "perTokens": 1000000
+    },
+    "hitAndRefresh": {
+      "dollarCost": 0.5,
+      "perTokens": 1000000
+    },
+    "output": {
+      "dollarCost": 25,
+      "perTokens": 1000000
+    },
+    "multipliers": {
+      "batch": 0.5,
+      "fast": 2,
+      "us-inference": 1.1
+    }
+  },
+  "claude-opus-4-8": {
+    "input": {
+      "dollarCost": 5,
+      "perTokens": 1000000
+    },
+    "5mPromptCacheWrite": {
+      "dollarCost": 6.25,
+      "perTokens": 1000000
+    },
+    "60mPromptCacheWrite": {
+      "dollarCost": 10,
+      "perTokens": 1000000
+    },
+    "hitAndRefresh": {
+      "dollarCost": 0.5,
+      "perTokens": 1000000
+    },
+    "output": {
+      "dollarCost": 25,
+      "perTokens": 1000000
+    },
+    "multipliers": {
+      "batch": 0.5,
+      "fast": 2,
+      "us-inference": 1.1
+    }
+  },
+  "claude-opus-4-7": {
+    "input": {
+      "dollarCost": 5,
+      "perTokens": 1000000
+    },
+    "5mPromptCacheWrite": {
+      "dollarCost": 6.25,
+      "perTokens": 1000000
+    },
+    "60mPromptCacheWrite": {
+      "dollarCost": 10,
+      "perTokens": 1000000
+    },
+    "hitAndRefresh": {
+      "dollarCost": 0.5,
+      "perTokens": 1000000
+    },
+    "output": {
+      "dollarCost": 25,
+      "perTokens": 1000000
+    },
+    "multipliers": {
+      "batch": 0.5,
+      "us-inference": 1.1
+    }
+  },
+  "claude-opus-4-6": {
+    "input": {
+      "dollarCost": 5,
+      "perTokens": 1000000
+    },
+    "5mPromptCacheWrite": {
+      "dollarCost": 6.25,
+      "perTokens": 1000000
+    },
+    "60mPromptCacheWrite": {
+      "dollarCost": 10,
+      "perTokens": 1000000
+    },
+    "hitAndRefresh": {
+      "dollarCost": 0.5,
+      "perTokens": 1000000
+    },
+    "output": {
+      "dollarCost": 25,
+      "perTokens": 1000000
+    },
+    "multipliers": {
+      "batch": 0.5,
+      "us-inference": 1.1
+    }
+  },
+  "claude-opus-4-5": {
+    "input": {
+      "dollarCost": 5,
+      "perTokens": 1000000
+    },
+    "5mPromptCacheWrite": {
+      "dollarCost": 6.25,
+      "perTokens": 1000000
+    },
+    "60mPromptCacheWrite": {
+      "dollarCost": 10,
+      "perTokens": 1000000
+    },
+    "hitAndRefresh": {
+      "dollarCost": 0.5,
+      "perTokens": 1000000
+    },
+    "output": {
+      "dollarCost": 25,
+      "perTokens": 1000000
+    },
+    "multipliers": {
+      "batch": 0.5
+    }
+  },
+  "claude-opus-4-1": {
+    "input": {
+      "dollarCost": 15,
+      "perTokens": 1000000
+    },
+    "5mPromptCacheWrite": {
+      "dollarCost": 18.75,
+      "perTokens": 1000000
+    },
+    "60mPromptCacheWrite": {
+      "dollarCost": 30,
+      "perTokens": 1000000
+    },
+    "hitAndRefresh": {
+      "dollarCost": 1.5,
+      "perTokens": 1000000
+    },
+    "output": {
+      "dollarCost": 75,
+      "perTokens": 1000000
+    },
+    "multipliers": {
+      "batch": 0.5
+    }
+  },
+  "claude-opus-4": {
+    "input": {
+      "dollarCost": 15,
+      "perTokens": 1000000
+    },
+    "5mPromptCacheWrite": {
+      "dollarCost": 18.75,
+      "perTokens": 1000000
+    },
+    "60mPromptCacheWrite": {
+      "dollarCost": 30,
+      "perTokens": 1000000
+    },
+    "hitAndRefresh": {
+      "dollarCost": 1.5,
+      "perTokens": 1000000
+    },
+    "output": {
+      "dollarCost": 75,
+      "perTokens": 1000000
+    },
+    "multipliers": {
+      "batch": 0.5
+    }
+  },
+  "claude-sonnet-5-5": {
+    "input": {
+      "dollarCost": 2,
+      "perTokens": 1000000
+    },
+    "5mPromptCacheWrite": {
+      "dollarCost": 2.5,
+      "perTokens": 1000000
+    },
+    "60mPromptCacheWrite": {
+      "dollarCost": 4,
+      "perTokens": 1000000
+    },
+    "hitAndRefresh": {
+      "dollarCost": 0.1,
+      "perTokens": 1000000
+    },
+    "output": {
+      "dollarCost": 10,
+      "perTokens": 1000000
+    },
+    "multipliers": {
+      "batch": 0.5,
+      "us-inference": 1.1
+    }
+  },
+  "claude-sonnet-5": {
+    "input": {
+      "dollarCost": 2,
+      "perTokens": 1000000
+    },
+    "5mPromptCacheWrite": {
+      "dollarCost": 2.5,
+      "perTokens": 1000000
+    },
+    "60mPromptCacheWrite": {
+      "dollarCost": 4,
+      "perTokens": 1000000
+    },
+    "hitAndRefresh": {
+      "dollarCost": 0.2,
+      "perTokens": 1000000
+    },
+    "output": {
+      "dollarCost": 10,
+      "perTokens": 1000000
+    },
+    "multipliers": {
+      "batch": 0.5,
+      "us-inference": 1.1
+    }
+  },
+  "claude-sonnet-4-6": {
+    "input": {
+      "dollarCost": 3,
+      "perTokens": 1000000
+    },
+    "5mPromptCacheWrite": {
+      "dollarCost": 3.75,
+      "perTokens": 1000000
+    },
+    "60mPromptCacheWrite": {
+      "dollarCost": 6,
+      "perTokens": 1000000
+    },
+    "hitAndRefresh": {
+      "dollarCost": 0.3,
+      "perTokens": 1000000
+    },
+    "output": {
+      "dollarCost": 15,
+      "perTokens": 1000000
+    },
+    "multipliers": {
+      "batch": 0.5,
+      "us-inference": 1.1
+    }
+  },
+  "claude-sonnet-4-5": {
+    "input": {
+      "dollarCost": 3,
+      "perTokens": 1000000
+    },
+    "5mPromptCacheWrite": {
+      "dollarCost": 3.75,
+      "perTokens": 1000000
+    },
+    "60mPromptCacheWrite": {
+      "dollarCost": 6,
+      "perTokens": 1000000
+    },
+    "hitAndRefresh": {
+      "dollarCost": 0.3,
+      "perTokens": 1000000
+    },
+    "output": {
+      "dollarCost": 15,
+      "perTokens": 1000000
+    },
+    "multipliers": {
+      "batch": 0.5
+    }
+  },
+  "claude-sonnet-4": {
+    "input": {
+      "dollarCost": 3,
+      "perTokens": 1000000
+    },
+    "5mPromptCacheWrite": {
+      "dollarCost": 3.75,
+      "perTokens": 1000000
+    },
+    "60mPromptCacheWrite": {
+      "dollarCost": 6,
+      "perTokens": 1000000
+    },
+    "hitAndRefresh": {
+      "dollarCost": 0.3,
+      "perTokens": 1000000
+    },
+    "output": {
+      "dollarCost": 15,
+      "perTokens": 1000000
+    },
+    "multipliers": {
+      "batch": 0.5
+    }
+  },
+  "claude-haiku-5-5": {
+    "input": {
+      "dollarCost": 0.1,
+      "perTokens": 1000000
+    },
+    "5mPromptCacheWrite": {
+      "dollarCost": 0.125,
+      "perTokens": 1000000
+    },
+    "60mPromptCacheWrite": {
+      "dollarCost": 0.2,
+      "perTokens": 1000000
+    },
+    "hitAndRefresh": {
+      "dollarCost": 0.01,
+      "perTokens": 1000000
+    },
+    "output": {
+      "dollarCost": 0.5,
+      "perTokens": 1000000
+    },
+    "overPromptTokens": {
+      "100000": {
+        "input": {
+          "dollarCost": 0.5,
+          "perTokens": 1000000
+        },
+        "5mPromptCacheWrite": {
+          "dollarCost": 0.625,
+          "perTokens": 1000000
+        },
+        "60mPromptCacheWrite": {
+          "dollarCost": 1,
+          "perTokens": 1000000
+        },
+        "hitAndRefresh": {
+          "dollarCost": 0.05,
+          "perTokens": 1000000
+        },
+        "output": {
+          "dollarCost": 2.5,
+          "perTokens": 1000000
+        }
+      }
+    },
+    "multipliers": {
+      "batch": 0.5,
+      "us-inference": 1.1
+    }
+  },
+  "claude-haiku-4-5": {
+    "input": {
+      "dollarCost": 1,
+      "perTokens": 1000000
+    },
+    "5mPromptCacheWrite": {
+      "dollarCost": 1.25,
+      "perTokens": 1000000
+    },
+    "60mPromptCacheWrite": {
+      "dollarCost": 2,
+      "perTokens": 1000000
+    },
+    "hitAndRefresh": {
+      "dollarCost": 0.1,
+      "perTokens": 1000000
+    },
+    "output": {
+      "dollarCost": 5,
+      "perTokens": 1000000
+    },
+    "multipliers": {
+      "batch": 0.5
+    }
+  },
+  "claude-haiku-4-5-20251001": {
+    "input": {
+      "dollarCost": 1,
+      "perTokens": 1000000
+    },
+    "5mPromptCacheWrite": {
+      "dollarCost": 1.25,
+      "perTokens": 1000000
+    },
+    "60mPromptCacheWrite": {
+      "dollarCost": 2,
+      "perTokens": 1000000
+    },
+    "hitAndRefresh": {
+      "dollarCost": 0.1,
+      "perTokens": 1000000
+    },
+    "output": {
+      "dollarCost": 5,
+      "perTokens": 1000000
+    },
+    "multipliers": {
+      "batch": 0.5
+    }
+  }
+}
