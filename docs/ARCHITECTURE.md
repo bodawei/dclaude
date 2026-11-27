@@ -4,7 +4,7 @@ dclaude is three layers that run in order: **load** the files, **transform** the
 **present** it as one output. Each layer has its own folder under `lib/`, and every file's header
 comment says which layer it belongs to. `bin/dclaude.mjs` is the command line that runs them.
 
-This document is the canonical description of that split: what each layer does, what it may
+This is the canonical description of that split: what each layer does, what it may
 not do, how data moves through it, and where a new change belongs. The data shapes themselves
 are documented once, in the header comments of `lib/load/transcripts.mjs` and
 `lib/transform/projects.mjs`.
