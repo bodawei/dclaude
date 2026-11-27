@@ -1,0 +1,100 @@
+name: Claude PR review
+
+# Claude reviews every non-draft PR, on open and on each new push. On later
+# rounds it also resolves its own earlier review threads whose issue the PR
+# has since fixed.
+#
+# Setup: run `claude setup-token` and save the token it prints as a
+# CLAUDE_CODE_OAUTH_TOKEN repository secret (Settings > Secrets and
+# variables > Actions), and install the Claude GitHub App on the repo
+# (https://github.com/apps/claude) so comments post as claude[bot].
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      id-token: write
+    env:
+      # Set a CLAUDE_REVIEW_MODEL repository variable (Settings > Secrets and
+      # variables > Actions > Variables) to pick another model.
+      CLAUDE_REVIEW_MODEL: ${{ vars.CLAUDE_REVIEW_MODEL || 'claude-opus-5-5' }}
+
+    steps:
+      - name: Check out PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Claude review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: |
+            --model ${{ env.CLAUDE_REVIEW_MODEL }}
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh api graphql:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Read,Grep,Glob"
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+            HEAD SHA: ${{ github.event.pull_request.head.sha }}
+
+            You are reviewing this pull request. Do the two parts below in order.
+
+            ## Part 1: resolve review threads fixed since earlier rounds
+
+            List the PR's review threads:
+
+              gh api graphql -f query='
+                query($owner:String!,$repo:String!,$pr:Int!){
+                  repository(owner:$owner,name:$repo){
+                    pullRequest(number:$pr){
+                      reviewThreads(first:100){
+                        nodes{
+                          id isResolved isOutdated path line
+                          comments(first:50){ nodes{ author{login} body createdAt } }
+                        }
+                      }
+                    }
+                  }
+                }' -f owner=${{ github.repository_owner }} -f repo=${{ github.event.repository.name }} -F pr=${{ github.event.pull_request.number }}
+
+            Consider only threads that are unresolved AND whose first comment
+            was written by a Claude bot (login `claude` or `claude[bot]`, or
+            `github-actions` / `github-actions[bot]` when that comment is a
+            review finding). Leave threads started by humans alone.
+
+            For each such thread, read the current code at the HEAD SHA and
+            decide whether the issue it raised has been addressed: fixed in
+            code, the code was removed, or a reply in the thread gives a
+            reason that settles it. If addressed, resolve it:
+
+              gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -f id=<thread id>
+
+            If it is not addressed, leave it open and do not repeat that
+            finding in Part 2. Being outdated (isOutdated) alone does not
+            mean addressed; check the code.
+
+            ## Part 2: review the current changes
+
+            Review the diff (`gh pr diff ${{ github.event.pull_request.number }}`)
+            for correctness bugs, security problems, and clear readability or
+            maintainability issues. Follow any CLAUDE.md in the repo. Skip
+            style nitpicks and anything already raised in an open thread.
+
+            - Post each specific finding as an inline comment on the relevant
+              line with mcp__github_inline_comment__create_inline_comment.
+            - Then post one short top-level summary with `gh pr comment`:
+              how many earlier threads you resolved, how many remain open,
+              and the new findings (or "no new issues").
