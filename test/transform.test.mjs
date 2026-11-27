@@ -1,6 +1,7 @@
-// Layer 2, transformation: lib/transform/projects.mjs and lib/transform/costs.mjs.
+// Layer 2, transformation: lib/transform/projects.mjs, costs.mjs and windows.mjs.
 
 import assert from "node:assert/strict";
+import { join } from "node:path";
 import { describe, test } from "node:test";
 
 import { loadPaths } from "../lib/load/transcripts.mjs";
@@ -11,7 +12,8 @@ import {
   groupWorkspaces,
   makeProject,
 } from "../lib/transform/projects.mjs";
-import { call, projectsFolder } from "./helpers.mjs";
+import { windowOf } from "../lib/transform/windows.mjs";
+import { assistant, call, projectsFolder, tempDir, transcript, USAGE, user } from "./helpers.mjs";
 
 /** Rates in dollars per token, as parseCosts returns them. */
 const price = (input, output, write5m, write1h, read) => ({
@@ -145,5 +147,84 @@ describe("allTurns", () => {
         ["main prompt", false, 50],
       ],
     );
+  });
+});
+
+describe("windowOf", () => {
+  const now = new Date("2026-11-27T22:00:00.000Z");
+
+  test("starts a 5-hour or weekly window that long before it resets", () => {
+    const resetsAt = new Date("2026-11-28T01:30:00.000Z");
+
+    assert.deepEqual(windowOf("5h", { percent: 40, resetsAt }, now), {
+      kind: "5h",
+      start: new Date("2026-11-27T20:30:00.000Z"),
+      end: resetsAt,
+      percent: 40,
+    });
+    assert.equal(
+      windowOf("week", { percent: 75, resetsAt }, now).start.toISOString(),
+      "2026-11-21T01:30:00.000Z",
+    );
+  });
+
+  test("starts at now when no window is open", () => {
+    assert.deepEqual(windowOf("5h", { percent: 0, resetsAt: null }, now), {
+      kind: "5h",
+      start: now,
+      end: null,
+      percent: 0,
+    });
+  });
+
+  test("covers the calendar month in local time", () => {
+    const w = windowOf("month", null, new Date(2026, 10, 27, 12));
+
+    assert.deepEqual(w, {
+      kind: "month",
+      start: new Date(2026, 10, 1),
+      end: new Date(2026, 11, 1),
+      percent: null,
+    });
+  });
+});
+
+describe("buildProjects with since", () => {
+  const root = join(tempDir(), "projects");
+
+  transcript(join(root, "-repos-w", "s.jsonl"), [
+    user("old", "2026-11-27T10:00:00.000Z", { cwd: "/repos/w" }),
+    assistant("a", USAGE, "2026-11-27T10:00:05.000Z"),
+    user("spans", "2026-11-27T11:59:00.000Z"),
+    assistant("b", USAGE, "2026-11-27T11:59:30.000Z"),
+    assistant("c", USAGE, "2026-11-27T12:00:30.000Z"),
+    user("new", "2026-11-27T13:00:00.000Z"),
+    assistant("d", USAGE, "2026-11-27T13:00:05.000Z"),
+  ]);
+  const raw = loadPaths([root]);
+  const since = new Date("2026-11-27T12:00:00.000Z");
+
+  test("keeps the turns that reach the window, the spanning one whole and marked", () => {
+    const turns = allTurns(buildProjects(raw, { since }), null);
+
+    assert.deepEqual(
+      turns.map((t) => [t.prompt, t.calls.length, t.beforeWindow]),
+      [
+        ["new", 1, false],
+        ["spans", 2, true],
+      ],
+    );
+  });
+
+  test("totals only the kept turns and leaves the raw data alone", () => {
+    const [p] = buildProjects(raw, { since });
+
+    assert.equal(p.callCount, 3);
+    assert.equal(raw[0].sessions[0].turns.length, 3);
+    assert.equal(raw[0].sessions[0].turns[1].beforeWindow, undefined);
+  });
+
+  test("drops a project with no turns in the window", () => {
+    assert.deepEqual(buildProjects(raw, { since: new Date("2026-11-28T00:00:00.000Z") }), []);
   });
 });

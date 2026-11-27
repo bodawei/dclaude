@@ -1,4 +1,4 @@
-// Layer 1, loading: lib/load/transcripts.mjs and lib/load/prices.mjs.
+// Layer 1, loading: lib/load/transcripts.mjs, lib/load/prices.mjs and lib/load/usage.mjs.
 
 import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
@@ -7,6 +7,7 @@ import { describe, test } from "node:test";
 
 import { loadCosts, parseCosts } from "../lib/load/prices.mjs";
 import { loadPaths, parseTranscriptUncached } from "../lib/load/transcripts.mjs";
+import { parseReset, parseUsage, readUsage } from "../lib/load/usage.mjs";
 import { assistant, projectsFolder, tempDir, transcript, USAGE, user } from "./helpers.mjs";
 
 describe("parseTranscriptUncached", () => {
@@ -128,5 +129,74 @@ describe("loadCosts", () => {
       () => loadCosts(path),
       (e) => e.path === path,
     );
+  });
+});
+
+const NOW = new Date(Date.UTC(2026, 10, 27, 22, 0));
+const USAGE_TEXT = [
+  "You are currently using your subscription to power your Claude Code usage",
+  "",
+  "Current session: 40% used · resets Nov 28 at 1:30am (UTC)",
+  "Current week (all models): 75% used · resets Nov 28 at 2am (UTC)",
+].join("\n");
+
+describe("parseReset", () => {
+  test("reads a date with or without minutes", () => {
+    assert.equal(
+      parseReset("Nov 28 at 1:30am (UTC)", NOW).toISOString(),
+      "2026-11-28T01:30:00.000Z",
+    );
+    assert.equal(parseReset("Nov 28 at 12pm (UTC)", NOW).toISOString(), "2026-11-28T12:00:00.000Z");
+    assert.equal(parseReset("Nov 28 at 12am (UTC)", NOW).toISOString(), "2026-11-28T00:00:00.000Z");
+  });
+
+  test("picks the year closest to now", () => {
+    const lateDecember = new Date(Date.UTC(2026, 11, 31, 22, 0));
+
+    assert.equal(
+      parseReset("Jan 2 at 3am (UTC)", lateDecember).toISOString(),
+      "2027-01-02T03:00:00.000Z",
+    );
+  });
+
+  test("reads a time without a date as the nearest such time", () => {
+    assert.equal(parseReset("11:30pm (UTC)", NOW).toISOString(), "2026-11-27T23:30:00.000Z");
+  });
+
+  test("rejects anything else, including a time not in UTC", () => {
+    assert.throws(() => parseReset("Nov 28 at 1:30am (America/Los_Angeles)", NOW), /reset time/);
+    assert.throws(() => parseReset("Foo 28 at 1am (UTC)", NOW), /month/);
+  });
+});
+
+describe("parseUsage", () => {
+  test("reads the percentage and reset of each window", () => {
+    assert.deepEqual(parseUsage(USAGE_TEXT, "5h", NOW), {
+      percent: 40,
+      resetsAt: new Date("2026-11-28T01:30:00.000Z"),
+    });
+    assert.deepEqual(parseUsage(USAGE_TEXT, "week", NOW), {
+      percent: 75,
+      resetsAt: new Date("2026-11-28T02:00:00.000Z"),
+    });
+  });
+
+  test("gives no reset time when no window is open", () => {
+    assert.deepEqual(parseUsage("Current session: 0% used\n", "5h", NOW), {
+      percent: 0,
+      resetsAt: null,
+    });
+  });
+
+  test("throws when the line is missing", () => {
+    assert.throws(() => parseUsage("something else", "week", NOW), /Current week/);
+  });
+});
+
+describe("readUsage", () => {
+  test("parses what the given runner returns", async () => {
+    const usage = await readUsage("5h", NOW, async () => USAGE_TEXT);
+
+    assert.equal(usage.percent, 40);
   });
 });

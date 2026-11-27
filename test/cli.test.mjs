@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { projectsFolder } from "./helpers.mjs";
+import { projectsFolder, tempDir } from "./helpers.mjs";
 
 const BIN = fileURLToPath(new URL("../bin/dclaude.mjs", import.meta.url));
 const README = fileURLToPath(new URL("../README.md", import.meta.url));
@@ -54,6 +54,23 @@ describe("bin/dclaude.mjs", () => {
     assert.throws(
       () => execFileSync(process.execPath, [BIN, "--nope"], { stdio: "pipe" }),
       (e) => e.status === 2 && String(e.stderr).includes("Unknown option: --nope"),
+    );
+  });
+
+  test("rejects a --window it doesn't know", () => {
+    assert.throws(
+      () => execFileSync(process.execPath, [BIN, root, "--window", "day"], { stdio: "pipe" }),
+      (e) => e.status === 2 && String(e.stderr).includes("--window must be one of 5h, week, month"),
+    );
+  });
+
+  test("stops when --window 5h can't run claude", () => {
+    const env = { ...process.env, PATH: tempDir() };
+
+    assert.throws(
+      () => execFileSync(process.execPath, [BIN, root, "--window", "5h"], { stdio: "pipe", env }),
+      (e) =>
+        e.status === 1 && String(e.stderr).includes("claude (Claude Code) is not on your PATH"),
     );
   });
 

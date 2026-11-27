@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import { loadPaths } from "../lib/load/transcripts.mjs";
-import { secs } from "../lib/present/common.mjs";
+import { secs, windowText } from "../lib/present/common.mjs";
 import { csvReport, csvSummary } from "../lib/present/csv.mjs";
 import { markdownReport } from "../lib/present/markdown.mjs";
 import { projectLabel, tailFrame, tailLines, turnExtra, turnModel } from "../lib/present/tail.mjs";
@@ -165,5 +165,65 @@ describe("tailFrame", () => {
 
     assert.equal(lines.length, 4);
     assert.ok(visible.every((l) => l.length <= 40));
+  });
+});
+
+describe("windowText", () => {
+  const w = {
+    kind: "5h",
+    start: new Date(2026, 10, 27, 12, 29),
+    end: new Date(2026, 10, 27, 17, 29),
+    percent: 40,
+  };
+
+  test("shows the percentage and the window, the end's date only when it differs", () => {
+    assert.equal(windowText(w), "5-hour window: 40% used, 2026-11-27 12:29 → 17:29");
+    assert.equal(
+      windowText({ ...w, kind: "week", start: new Date(2026, 10, 20, 17, 59) }),
+      "weekly window: 40% used, 2026-11-20 17:59 → 2026-11-27 17:29",
+    );
+  });
+
+  test("says when no window is open or it can't be retrieved", () => {
+    assert.equal(windowText({ ...w, end: null, percent: 0 }), "5-hour window: 0% used, none open");
+    assert.equal(windowText({ ...w, error: true }), "5-hour window: can't retrieve");
+  });
+
+  test("shows the month by its first days", () => {
+    const month = { kind: "month", start: new Date(2026, 10, 1), end: new Date(2026, 11, 1) };
+
+    assert.equal(windowText(month), "month: 2026-11-01 → 2026-12-01");
+  });
+});
+
+describe("--window in the outputs", () => {
+  const window = {
+    kind: "5h",
+    start: new Date(2026, 10, 27, 0, 0),
+    end: new Date(2026, 10, 27, 5, 0),
+    percent: 40,
+  };
+  const now = new Date(2026, 10, 27, 2, 26, 59);
+
+  test("the --tail header shows the window and a spanning turn is marked", () => {
+    const entries = allTurns(projects, null);
+
+    entries[0].beforeWindow = true;
+    const [header, , , first] = tailFrame(entries, null, { rows: 10, cols: 140, now, window });
+
+    assert.ok(header.includes(" · 5-hour window: 40% used, 2026-11-27 00:00 → 05:00 · q to quit"));
+    assert.match(first, /^ {4}↳ ↤ opus-5-5/);
+  });
+
+  test("the Markdown report names the window and marks a spanning turn", () => {
+    // A fresh fixture, so marking its turns changes nothing the other tests read.
+    const marked = buildProjects(loadPaths([projectsFolder()]));
+
+    for (const t of marked[0].sessions[0].turns) t.beforeWindow = true;
+
+    const md = markdownReport(marked, { now, window });
+
+    assert.match(md, /Only turns in this window \(5-hour window: 40% used, /);
+    assert.match(md, /\| \*\*1\*\* ↤ \|/);
   });
 });
