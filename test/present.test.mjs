@@ -7,7 +7,14 @@ import { loadPaths } from "../lib/load/transcripts.mjs";
 import { secs } from "../lib/present/common.mjs";
 import { csvReport, csvSummary } from "../lib/present/csv.mjs";
 import { markdownReport } from "../lib/present/markdown.mjs";
-import { projectLabel, tailFrame, tailLines, turnExtra, turnModel } from "../lib/present/tail.mjs";
+import {
+  activeShade,
+  projectLabel,
+  tailFrame,
+  tailLines,
+  turnExtra,
+  turnModel,
+} from "../lib/present/tail.mjs";
 import { allTurns, buildProjects } from "../lib/transform/projects.mjs";
 import { call, projectsFolder } from "./helpers.mjs";
 
@@ -136,6 +143,9 @@ describe("projectLabel", () => {
   });
 });
 
+/** The styling code a --tail line opens with, e.g. "\x1b[1m". */
+const openingStyle = (l) => l.slice(0, l.indexOf("m") + 1);
+
 describe("tailFrame", () => {
   const now = new Date(2026, 10, 27, 2, 26, 59);
   const rates = { "claude-opus-5-5": { base: {}, tiers: [], multipliers: {} } };
@@ -165,5 +175,37 @@ describe("tailFrame", () => {
 
     assert.equal(lines.length, 4);
     assert.ok(visible.every((l) => l.length <= 40));
+  });
+
+  test("shades turns active in the last 10 and 60 seconds, but not project lines", () => {
+    const latest = Date.parse(entries[0].last);
+    const shaded = (after) =>
+      tailFrame(entries, rates, { rows: 10, cols: 100, now: new Date(latest + after * 1000) })
+        .slice(2)
+        .map(
+          (l) =>
+            ({ "\x1b[97;48;5;27m": "bright", "\x1b[97;48;5;18m": "dark" })[openingStyle(l)] ?? null,
+        );
+
+    // The project line, then its two turns, last active two seconds apart, newest first.
+    assert.deepEqual(shaded(8), [null, "bright", "bright"]);
+    assert.deepEqual(shaded(9), [null, "bright", "dark"]);
+    assert.deepEqual(shaded(59), [null, "dark", null]);
+    assert.deepEqual(shaded(61), [null, null, null]);
+  });
+});
+
+describe("activeShade", () => {
+  const now = new Date("2026-11-27T01:01:00.000Z");
+
+  test("is bright, then dark, then gone as the turn ages", () => {
+    assert.match(activeShade("2026-11-27T01:00:50.000Z", now), /48;5;27m/);
+    assert.match(activeShade("2026-11-27T01:00:00.000Z", now), /48;5;18m/);
+    assert.equal(activeShade("2026-11-27T00:59:59.000Z", now), null);
+  });
+
+  test("ignores a missing or unreadable time", () => {
+    assert.equal(activeShade("", now), null);
+    assert.equal(activeShade(undefined, now), null);
   });
 });
