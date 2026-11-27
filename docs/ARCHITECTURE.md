@@ -91,6 +91,7 @@ These keep the layers apart. A change that needs to break one should change this
 | A derived value that more than one output needs belongs in transformation, not in a presenter.                                                                                               | Otherwise the outputs compute it separately and drift apart.                                          |
 | A new output is a new file in `lib/present/`.                                                                                                                                                | Outputs stay independent; adding one cannot break another.                                            |
 | Each file lists its exports in one `export { … }` at the end.                                                                                                                                | The file's interface to the other layers is in one place.                                             |
+| `bin/dclaude.mjs` runs `main()` only when it is the command being executed (the `isMain` check at the end of the file).                                                                      | Tests import functions from `bin/` without running the CLI.                                           |
 
 ## Where a change goes
 

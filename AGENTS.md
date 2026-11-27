@@ -72,6 +72,8 @@ and transformation never print or exit, loaded data is never mutated, and each o
 file in `lib/present/`. If a change needs to break one of those rules, propose updating
 `docs/ARCHITECTURE.md` first.
 
+Also:
+
 - The tool only reads local files. Do not add network access, telemetry, or writes outside
   stdout.
 - Node 21 or later (`engines` in `package.json`). Use only `node:` built-ins; do not add a runtime
