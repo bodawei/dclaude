@@ -114,7 +114,9 @@ warnings. If one is not, treat it as a regression rather than a baseline.
 - `pnpm test` passes.
 - `pnpm exec oxlint --deny-warnings` reports nothing.
 - `pnpm format:check` passes.
-- `README.md` and the `--help` text describe any option or column you changed.
+- `README.md` and the `--help` text describe any option or column you changed. The options
+  are defined once, by the Options section of `HELP` in `bin/dclaude.mjs`, and
+  `test/cli.test.mjs` fails if the README's option table lists a different set.
 - `docs/ROADMAP.md` is updated if the work changed a project's state.
 - Commit messages are a short imperative sentence (`Show the latest turn time on --tail project
   lines`).
