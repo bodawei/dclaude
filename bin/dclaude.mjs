@@ -86,17 +86,23 @@ Columns:
   cache_read      input tokens served from the prompt cache (cache_read_input_tokens)
   thinking        thinking tokens (subset of output, when reported)`;
 
-const KNOWN_FLAGS = new Set([
-  "--summary",
-  "--no-calls",
-  "--csv",
-  "--hide-worktrees",
-  "--tail",
-  "--help",
-  "-h",
-  "--version",
-  "-v",
-]);
+/**
+ * The options, read from the Options section of HELP: every line there that starts with two
+ * spaces and a dash names one option and its short form, if any ("  --help, -h  ..."). The
+ * help text is the one list; test/cli.test.mjs checks that README.md lists the same options.
+ */
+function optionsIn(help) {
+  const start = help.indexOf("\nOptions:\n");
+  const section = help.slice(start, help.indexOf("\n\n", start + 1));
+
+  return new Set(
+    [...section.matchAll(/^ {2}(-[\w-]+)(?:, (-[\w-]+))?/gm)].flatMap((m) =>
+      m.slice(1).filter(Boolean),
+    ),
+  );
+}
+
+const KNOWN_FLAGS = optionsIn(HELP);
 const DEFAULT_ROOT = join(homedir(), ".claude", "projects");
 
 function main(argv) {

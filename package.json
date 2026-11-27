@@ -11,7 +11,16 @@
     "tokens",
     "usage"
   ],
+  "homepage": "https://github.com/bodawei/dclaude#readme",
+  "bugs": {
+    "url": "https://github.com/bodawei/dclaude/issues"
+  },
   "license": "MIT",
+  "author": "柏大衛",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bodawei/dclaude.git"
+  },
   "bin": {
     "dclaude": "bin/dclaude.mjs"
   },
