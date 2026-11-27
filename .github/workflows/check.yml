@@ -1,0 +1,35 @@
+name: Check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Version comes from `packageManager` in package.json.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Report only: nothing here rewrites files. Fix locally and push again.
+      - name: Lint
+        run: pnpm exec oxlint --deny-warnings
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Tests
+        run: pnpm test

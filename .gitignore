@@ -3,3 +3,7 @@ node_modules/
 # generated reports
 usage-report.md
 usage-report.csv
+# Local workspace scratch space, never committed.
+.context/
+# Claude Code worktrees.
+.claude/worktrees/
