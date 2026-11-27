@@ -43,7 +43,9 @@ Options:
                 effort and flags when there is room, INPUT-NEW (new-input +
                 cache_write), INPUT-CACHED (cache_read), OUTPUT and the start of the
                 prompt (20+ chars).
-                Subagent turns are marked "↳". Press q or Ctrl-C to quit.
+                Subagent turns are marked "↳". A turn that wrote to its transcript in
+                the last 10 seconds is shaded bright blue, in the last 60 dark blue.
+                Press q or Ctrl-C to quit.
                 With a price table in ~/.dclaude_costs.json (or ~/dclaude_costs.json), a
                 COST column shows each turn's cost in dollars: new-input, output, cache
                 writes (priced by TTL) and cache_read combined. "?" means a model is missing

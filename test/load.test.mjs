@@ -57,6 +57,24 @@ describe("parseTranscriptUncached", () => {
   test("leaves totals to the transformation layer", () => {
     assert.equal(t.totals, undefined);
   });
+
+  test("records each turn's newest record time, tool results included", () => {
+    const busy = parseTranscriptUncached(
+      transcript(join(tempDir(), "busy.jsonl"), [
+        user("run the tests", "2026-11-27T01:00:00.000Z"),
+        assistant("b1", USAGE, "2026-11-27T01:00:01.000Z"),
+        // A tool result and an untimed record after the last response.
+        user([{ type: "tool_result", content: "ok" }], "2026-11-27T01:00:30.000Z"),
+        { type: "last-prompt" },
+      ]),
+    );
+
+    assert.deepEqual(
+      t.turns.map((turn) => turn.last),
+      ["2026-11-27T01:00:04.000Z", "2026-11-27T01:01:01.000Z"],
+    );
+    assert.equal(busy.turns[0].last, "2026-11-27T01:00:30.000Z");
+  });
 });
 
 describe("loadPaths", () => {
