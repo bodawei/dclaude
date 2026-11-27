@@ -4,7 +4,8 @@ name: Claude PR review
 # rounds it also resolves its own earlier review threads whose issue the PR
 # has since fixed.
 #
-# Setup: add an ANTHROPIC_API_KEY repository secret (Settings > Secrets and
+# Setup: run `claude setup-token` and save the token it prints as a
+# CLAUDE_CODE_OAUTH_TOKEN repository secret (Settings > Secrets and
 # variables > Actions), and install the Claude GitHub App on the repo
 # (https://github.com/apps/claude) so comments post as claude[bot].
 
@@ -40,7 +41,7 @@ jobs:
       - name: Claude review
         uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: |
             --model ${{ env.CLAUDE_REVIEW_MODEL }}
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh api graphql:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Read,Grep,Glob"
